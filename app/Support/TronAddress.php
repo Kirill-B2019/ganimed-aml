@@ -1,0 +1,69 @@
+<?php
+
+// | KB @CerberRus00 - Nexus Invest Team
+namespace App\Support;
+
+class TronAddress
+{
+    private const ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+    public static function isTron(string $address): bool
+    {
+        return (bool) preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $address);
+    }
+
+    public static function fromHex(string $hex): string
+    {
+        $hex = strtolower(ltrim($hex, '0x'));
+        if ($hex === '' || ! ctype_xdigit($hex)) {
+            return $hex;
+        }
+        if (! str_starts_with($hex, '41')) {
+            $hex = '41'.$hex;
+        }
+        if (strlen($hex) % 2 !== 0) {
+            return $hex;
+        }
+
+        $payload = hex2bin($hex);
+        if ($payload === false) {
+            return $hex;
+        }
+
+        $checksum = substr(hash('sha256', hash('sha256', $payload, true), true), 0, 4);
+
+        return self::base58Encode($payload.$checksum);
+    }
+
+    private static function base58Encode(string $bytes): string
+    {
+        $digits = [0];
+        foreach (array_values(unpack('C*', $bytes) ?: []) as $byte) {
+            $carry = $byte;
+            foreach ($digits as $i => $digit) {
+                $carry += $digit << 8;
+                $digits[$i] = $carry % 58;
+                $carry = intdiv($carry, 58);
+            }
+            while ($carry > 0) {
+                $digits[] = $carry % 58;
+                $carry = intdiv($carry, 58);
+            }
+        }
+
+        $encoded = '';
+        foreach (str_split($bytes) as $char) {
+            if ($char === "\x00") {
+                $encoded .= '1';
+            } else {
+                break;
+            }
+        }
+
+        foreach (array_reverse($digits) as $digit) {
+            $encoded .= self::ALPHABET[$digit];
+        }
+
+        return $encoded;
+    }
+}

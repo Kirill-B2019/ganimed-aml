@@ -1,0 +1,15 @@
+[Unit]
+Description=AML screening queue worker
+After=network.target mysql.service
+
+[Service]
+User=www-data
+Group=www-data
+Restart=always
+WorkingDirectory=/var/www/aml
+ExecStart=/usr/bin/php artisan queue:work database --sleep=1 --tries=3 --timeout=180
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=AML screening scheduler
+After=network.target
+
+[Service]
+Type=oneshot
+User=www-data
+WorkingDirectory=/var/www/aml
+ExecStart=/usr/bin/php artisan schedule:run
