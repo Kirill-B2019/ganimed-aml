@@ -1,12 +1,9 @@
 {{-- | KB @CerberRus00 - Nexus Invest Team --}}
 <x-app-layout :title="__('aml.dashboard')">
     <x-slot name="header">
-        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-                <h1 class="text-2xl font-semibold text-slate-900">{{ __('aml.dashboard') }}</h1>
-                <p class="mt-1 text-sm text-slate-500">{{ __('aml.period') }}: {{ $from }} — {{ $to }}</p>
-            </div>
-            <a href="{{ route('checks.create') }}" class="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700">{{ __('aml.new_check') }}</a>
+        <div>
+            <h1 class="text-2xl font-semibold text-slate-900">{{ __('aml.dashboard') }}</h1>
+            <p class="mt-1 text-sm text-slate-500">{{ __('aml.period') }}: {{ $from }} — {{ $to }}</p>
         </div>
     </x-slot>
 
