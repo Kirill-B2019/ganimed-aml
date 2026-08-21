@@ -39,7 +39,7 @@
         .num { word-break: break-all; }
         a { color: #111827; text-decoration: none; }
         .graph { text-align: center; margin: 6px 0 10px; page-break-inside: avoid; }
-        .graph svg { width: 520px; height: 400px; }
+        .graph img { width: 520px; height: 400px; border: none; }
         .legend { border-collapse: collapse; margin: 0 0 10px; width: auto; }
         .legend td { border: none; padding: 2px 8px 2px 0; font-size: 9px; color: #555; vertical-align: middle; }
         .row-success { background: #ecfdf5; }

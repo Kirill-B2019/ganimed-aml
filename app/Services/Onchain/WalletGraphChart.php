@@ -22,6 +22,34 @@ class WalletGraphChart
     ];
 
     /**
+     * Raster-safe graph for DomPDF: php-svg-lib chokes on inline HTML SVG
+     * (default black fill on lines, viewBox bugs, inherited DejaVu font).
+     *
+     * @param  array<string, mixed>  $graph
+     */
+    public function pdfMarkup(array $graph): string
+    {
+        $svg = $this->svg($graph, 520, 400, true);
+        if ($svg === '') {
+            return '';
+        }
+
+        $dir = storage_path('app/pdf-graphs');
+        if (! is_dir($dir) && ! mkdir($dir, 0775, true) && ! is_dir($dir)) {
+            return '';
+        }
+
+        $path = $dir.DIRECTORY_SEPARATOR.hash('sha1', $svg).'.svg';
+        if (! is_file($path)) {
+            file_put_contents($path, $svg);
+        }
+
+        $src = 'file:///'.str_replace('\\', '/', $path);
+
+        return '<img src="'.$src.'" width="520" height="400" alt="">';
+    }
+
+    /**
      * @param  array<string, mixed>  $graph
      */
     public function svg(array $graph, ?int $width = null, ?int $height = null, bool $forPdf = false): string
@@ -93,16 +121,32 @@ class WalletGraphChart
                 $hygiene === 'dust' || ! empty($edge['any_dust']) => self::COLORS['dust'],
                 default => self::COLORS[$direction] ?? self::COLORS['in'],
             };
-            $widthStroke = ($hygiene === 'spam' || $hygiene === 'dust' || ! empty($edge['any_dust'])) ? '2.4' : '1.4';
-            $markup .= sprintf(
-                '<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="%s" stroke-width="%s"/>',
-                $placed[$from][0],
-                $placed[$from][1],
-                $placed[$to][0],
-                $placed[$to][1],
-                $color,
-                $widthStroke
-            );
+            $strokeWidth = ($hygiene === 'spam' || $hygiene === 'dust' || ! empty($edge['any_dust'])) ? 3 : 2;
+            $x1 = round($placed[$from][0], 1);
+            $y1 = round($placed[$from][1], 1);
+            $x2 = round($placed[$to][0], 1);
+            $y2 = round($placed[$to][1], 1);
+            if ($forPdf) {
+                $markup .= sprintf(
+                    '<path d="M %s %s L %s %s" fill="none" stroke="%s" stroke-width="%d"></path>',
+                    $x1,
+                    $y1,
+                    $x2,
+                    $y2,
+                    $color,
+                    $strokeWidth
+                );
+            } else {
+                $markup .= sprintf(
+                    '<line x1="%s" y1="%s" x2="%s" y2="%s" fill="none" stroke="%s" stroke-width="%s"/>',
+                    $x1,
+                    $y1,
+                    $x2,
+                    $y2,
+                    $color,
+                    $strokeWidth
+                );
+            }
         }
 
         foreach (array_merge($hop2, $hop1) as $node) {
@@ -122,7 +166,9 @@ class WalletGraphChart
         }
 
         if ($forPdf) {
-            return '<svg xmlns="http://www.w3.org/2000/svg" width="'.$width.'" height="'.$height.'" viewBox="0 0 '.$width.' '.$height.'">'
+            return '<?xml version="1.0" encoding="UTF-8"?>'
+                .'<svg xmlns="http://www.w3.org/2000/svg" width="'.$width.'" height="'.$height.'">'
+                .'<rect x="0" y="0" width="'.$width.'" height="'.$height.'" fill="#ffffff" stroke="none"></rect>'
                 .$markup
                 .'</svg>';
         }
@@ -233,51 +279,61 @@ class WalletGraphChart
         $kind = (string) ($node['kind'] ?? 'unknown');
         $flags = is_array($node['flags'] ?? null) ? $node['flags'] : [];
         $fill = $this->fillColor($kind, $flags, $center);
-        $r = $center ? ($forPdf ? 16 : 22) : (((int) ($node['hop'] ?? 1)) >= 2 ? 11 : ($forPdf ? 12 : 15));
+        $r = $center ? ($forPdf ? 16 : 22) : (((int) ($node['hop'] ?? 1)) >= 2 ? 11 : ($forPdf ? 13 : 15));
         $url = $forPdf ? null : TronAddress::explorerUrl($id);
         $short = htmlspecialchars(TronAddress::short($id), ENT_QUOTES | ENT_XML1, 'UTF-8');
-        $inner = sprintf(
-            '<circle cx="%s" cy="%s" r="%s" fill="%s" stroke="#fff" stroke-width="2"/>',
-            $pos[0],
-            $pos[1],
-            $r,
-            $fill
-        );
-        if (! $forPdf) {
+        $cxNode = round($pos[0], 1);
+        $cyNode = round($pos[1], 1);
+        if ($forPdf) {
             $inner = sprintf(
-                '<title>%s</title>%s',
+                '<circle cx="%s" cy="%s" r="%s" fill="%s" stroke="#ffffff" stroke-width="2"></circle>',
+                $cxNode,
+                $cyNode,
+                $r,
+                $fill
+            );
+        } else {
+            $inner = sprintf(
+                '<title>%s</title><circle cx="%s" cy="%s" r="%s" fill="%s" stroke="#fff" stroke-width="2"/>',
                 htmlspecialchars($id, ENT_QUOTES | ENT_XML1, 'UTF-8'),
-                $inner
+                $cxNode,
+                $cyNode,
+                $r,
+                $fill
             );
         }
 
+        $font = $forPdf ? ' font-family="Helvetica"' : '';
         if ($center) {
             $inner .= sprintf(
-                '<text x="%s" y="%s" text-anchor="middle" font-size="%s" font-weight="600" fill="#111827">%s</text>',
-                $cx,
-                $cy + $r + ($forPdf ? 16 : 22),
+                '<text x="%s" y="%s" text-anchor="middle" font-size="%s"%s fill="#111827">%s</text>',
+                round($cx, 1),
+                round($cy + $r + ($forPdf ? 16 : 22), 1),
                 $forPdf ? '9' : '11',
+                $font,
                 $short
             );
         } else {
             if ($n !== null) {
                 $digitFill = $fill === self::COLORS['unknown'] ? '#111827' : '#ffffff';
                 $inner .= sprintf(
-                    '<text x="%s" y="%s" text-anchor="middle" font-size="%s" font-weight="700" fill="%s">%s</text>',
-                    $pos[0],
-                    $pos[1] + 4,
-                    $n > 9 ? '8' : ($forPdf ? '9' : '11'),
+                    '<text x="%s" y="%s" text-anchor="middle" font-size="%s"%s fill="%s">%s</text>',
+                    $cxNode,
+                    round($cyNode + 3.5, 1),
+                    $n > 9 ? '8' : ($forPdf ? '10' : '11'),
+                    $font,
                     $digitFill,
                     $n
                 );
             }
-            [$lx, $ly, $anchor] = $this->outerLabel($pos[0], $pos[1], $cx, $cy, $r + ($forPdf ? 12 : 16));
+            [$lx, $ly, $anchor] = $this->outerLabel($pos[0], $pos[1], $cx, $cy, $r + ($forPdf ? 14 : 16));
             $inner .= sprintf(
-                '<text x="%s" y="%s" text-anchor="%s" font-size="%s" fill="#111827">%s</text>',
-                $lx,
-                $ly,
+                '<text x="%s" y="%s" text-anchor="%s" font-size="%s"%s fill="#111827">%s</text>',
+                round($lx, 1),
+                round($ly, 1),
                 $anchor,
                 $forPdf ? '8' : '10',
+                $font,
                 $short
             );
         }

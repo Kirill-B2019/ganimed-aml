@@ -196,10 +196,21 @@ class PdfChartTest extends TestCase
         ]);
 
         $data = app(CheckReportPresenter::class)->data($check, true);
-        $this->assertStringContainsString('width="520"', $data['walletGraphSvg']);
-        $this->assertStringContainsString('#be123c', $data['walletGraphSvg']);
-        $this->assertStringNotContainsString('<a ', $data['walletGraphSvg']);
-        $this->assertStringNotContainsString('paint-order', $data['walletGraphSvg']);
+        $this->assertStringContainsString('<img', $data['walletGraphSvg']);
+        $this->assertStringContainsString('file:///', $data['walletGraphSvg']);
+        $this->assertStringContainsString('.svg', $data['walletGraphSvg']);
+        $this->assertSame(1, preg_match('/src="([^"]+)"/', $data['walletGraphSvg'], $matches));
+        $path = str_replace('/', DIRECTORY_SEPARATOR, (string) preg_replace('#^file:///#i', '', $matches[1]));
+        $this->assertFileExists($path);
+        $svg = (string) file_get_contents($path);
+        $this->assertStringContainsString('fill="none"', $svg);
+        $this->assertStringContainsString('#be123c', $svg);
+        $this->assertStringContainsString('Helvetica', $svg);
+        $this->assertStringContainsString('<circle', $svg);
+        $this->assertStringContainsString('<path d="M', $svg);
+        $this->assertStringNotContainsString('<a ', $svg);
+        $this->assertStringNotContainsString('viewBox', $svg);
+        $this->assertStringNotContainsString('paint-order', $svg);
 
         $html = view('reports.check', $data)->render();
         $this->assertStringContainsString(__('aml.wallet_graph'), $html);

@@ -112,7 +112,9 @@ class CheckReportPresenter
             'outflowRows' => $outflowRows,
             'inflowBars' => $this->withBarPercents($this->inflowBars($inflowRows)),
             'walletGraph' => $walletGraph,
-            'walletGraphSvg' => $walletGraph !== [] ? $this->graphChart->svg($walletGraph, forPdf: $pdf) : '',
+            'walletGraphSvg' => $walletGraph === []
+                ? ''
+                : ($pdf ? $this->graphChart->pdfMarkup($walletGraph) : $this->graphChart->svg($walletGraph)),
             'walletGraphPeers' => $walletGraphPeers,
             'walletGraphLegend' => $walletGraphPeers !== [] ? $this->graphChart->legend($walletGraphPeers) : [],
             'walletGraphPending' => (bool) ($walletGraph['pending'] ?? false),
