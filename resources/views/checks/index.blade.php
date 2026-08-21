@@ -82,7 +82,7 @@
                                 <td><x-verdict-badge :verdict="$check->verdict" /></td>
                                 <td class="font-mono text-ink-muted tabular-nums">{{ $check->risk_score ?? '—' }}</td>
                                 <td class="text-ink-muted">{{ $check->user?->name ?? '—' }}</td>
-                                <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at?->format('d.m.Y H:i') }}</td>
+                                <td class="text-ink-muted whitespace-nowrap">{{ \App\Support\MskTime::format($check->created_at) ?? '—' }}</td>
                                 <td>
                                     <div class="flex flex-wrap items-center gap-3">
                                         @if ($check->isCompleted())

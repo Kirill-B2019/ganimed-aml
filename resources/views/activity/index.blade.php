@@ -18,7 +18,7 @@
                     <tbody>
                         @forelse ($logs as $log)
                             <tr>
-                                <td class="text-ink-muted whitespace-nowrap">{{ $log->created_at->format('d.m.Y H:i') }}</td>
+                                <td class="text-ink-muted whitespace-nowrap">{{ \App\Support\MskTime::format($log->created_at) ?? '—' }}</td>
                                 <td>{{ $log->user?->name ?? '—' }}</td>
                                 <td>{{ $log->label() }}
                                     @if ($log->note())

@@ -164,6 +164,7 @@ return [
     'report_title_token' => 'Token security report',
     'report_title_url' => 'URL security report',
     'generated_at' => 'Generated at',
+    'timezone_msk' => 'MSK',
 
     'radar_title' => 'GoPlus risk radar',
     'radar_hint' => 'Scale 0–100. A value of 100 means the provider flag is 1.',

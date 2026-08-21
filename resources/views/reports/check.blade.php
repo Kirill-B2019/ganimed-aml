@@ -34,8 +34,14 @@
         th { background: #F3F2EE; font-size: 10px; color: #555; }
         table.sheet { table-layout: fixed; }
         table.sheet th, table.sheet td { word-wrap: break-word; }
+        table.sheet tr { page-break-inside: avoid; }
         .mono { font-family: DejaVu Sans, sans-serif; font-size: 8px; word-wrap: break-word; word-break: break-all; }
         .num { word-break: break-all; }
+        a { color: #111827; text-decoration: none; }
+        .graph { text-align: center; margin: 6px 0 10px; page-break-inside: avoid; }
+        .graph svg { width: 520px; height: 400px; }
+        .legend { border-collapse: collapse; margin: 0 0 10px; width: auto; }
+        .legend td { border: none; padding: 2px 8px 2px 0; font-size: 9px; color: #555; vertical-align: middle; }
         .row-success { background: #ecfdf5; }
         .row-warning { background: #fffbeb; }
         .row-danger { background: #fef2f2; }
@@ -366,28 +372,41 @@
             <p class="muted">{{ __('aml.graph_pending') }}</p>
         @endif
         @if (! empty($walletGraphSvg))
-            <div>{!! $walletGraphSvg !!}</div>
+            <div class="graph">{!! $walletGraphSvg !!}</div>
             @if (! empty($walletGraphLegend))
-            <p class="muted">
-                @foreach ($walletGraphLegend as $kind => $color)
-                    {{ __('aml.graph_kind_'.$kind) }}@if (! $loop->last) · @endif
-                @endforeach
-            </p>
+            <table class="legend">
+                <tr>
+                    @foreach ($walletGraphLegend as $kind => $color)
+                        <td style="background-color: {{ $color }}; width: 8px; padding: 0;">&nbsp;</td>
+                        <td>{{ __('aml.graph_kind_'.$kind) }}</td>
+                    @endforeach
+                </tr>
+            </table>
             @endif
             @if (! empty($walletGraphPeers))
+            <h3>{{ __('aml.graph_peers') }}</h3>
             <table class="sheet">
+                <colgroup>
+                    <col style="width: 6%">
+                    <col style="width: 38%">
+                    <col style="width: 22%">
+                    <col style="width: 22%">
+                    <col style="width: 12%">
+                </colgroup>
                 <thead>
                     <tr>
+                        <th>#</th>
                         <th>{{ __('aml.graph_peer') }}</th>
                         <th>{{ __('aml.graph_peer_status') }}</th>
                         <th>{{ __('aml.graph_peer_assets') }}</th>
+                        <th>{{ __('aml.graph_edge_in') }} / {{ __('aml.graph_edge_out') }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($walletGraphPeers as $peer)
                         <tr>
+                            <td>{{ $peer['n'] ?? '' }}</td>
                             <td class="mono">
-                                {{ $peer['n'] ?? '' }}
                                 @if (! empty($peer['explorer']))
                                     <a href="{{ $peer['explorer'] }}">{{ $peer['id'] }}</a>
                                 @else
@@ -400,6 +419,7 @@
                                 @endforeach
                             </td>
                             <td>{{ $peer['assets'] !== '' ? $peer['assets'] : '—' }}</td>
+                            <td>{{ (int) ($peer['in_count'] ?? 0) }} / {{ (int) ($peer['out_count'] ?? 0) }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -408,6 +428,8 @@
             @if (! empty($walletGraph['truncated']))
                 <p class="muted">{{ __('aml.graph_truncated') }}</p>
             @endif
+        @elseif (empty($walletGraphPending))
+            <p class="muted">{{ __('aml.graph_empty') }}</p>
         @endif
 
         <h2>{{ __('aml.inflows') }}</h2>
@@ -434,11 +456,15 @@
                 @endforeach
             </table>
         @endif
+        @if (empty($inflowRows))
+            <p class="muted">{{ __('aml.no_inflows') }}</p>
+        @else
         <table class="sheet">
             <colgroup>
-                <col style="width: 34%">
+                <col style="width: 28%">
                 <col style="width: 16%">
-                <col style="width: 18%">
+                <col style="width: 14%">
+                <col style="width: 10%">
                 <col style="width: 32%">
             </colgroup>
             <thead>
@@ -446,6 +472,7 @@
                     <th>{{ __('aml.inflow_from') }}</th>
                     <th>{{ __('aml.inflow_asset') }}</th>
                     <th>{{ __('aml.inflow_amount') }}</th>
+                    <th>{{ __('aml.inflow_count') }}</th>
                     <th>{{ __('aml.comment') }}</th>
                 </tr>
             </thead>
@@ -474,11 +501,13 @@
                             @endif
                         </td>
                         <td class="num">{{ $row['amount'] }}</td>
+                        <td>{{ $row['tx_count'] ?? '—' }}</td>
                         <td>{{ $row['comment'] }}</td>
                     </tr>
                 @endforeach
             </tbody>
         </table>
+        @endif
 
         <h2>{{ __('aml.outflows') }}</h2>
         <p class="muted">{{ __('aml.outflow_hint') }}</p>
@@ -487,9 +516,10 @@
         @else
         <table class="sheet">
             <colgroup>
-                <col style="width: 34%">
+                <col style="width: 28%">
                 <col style="width: 16%">
-                <col style="width: 18%">
+                <col style="width: 14%">
+                <col style="width: 10%">
                 <col style="width: 32%">
             </colgroup>
             <thead>
@@ -497,6 +527,7 @@
                     <th>{{ __('aml.outflow_to') }}</th>
                     <th>{{ __('aml.inflow_asset') }}</th>
                     <th>{{ __('aml.inflow_amount') }}</th>
+                    <th>{{ __('aml.inflow_count') }}</th>
                     <th>{{ __('aml.comment') }}</th>
                 </tr>
             </thead>
@@ -525,6 +556,7 @@
                             @endif
                         </td>
                         <td class="num">{{ $row['amount'] }}</td>
+                        <td>{{ $row['tx_count'] ?? '—' }}</td>
                         <td>{{ $row['comment'] }}</td>
                     </tr>
                 @endforeach

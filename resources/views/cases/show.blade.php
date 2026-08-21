@@ -35,7 +35,7 @@
                                     </td>
                                     <td>{{ __('aml.watch_interval_n', ['n' => $item->interval_days]) }}</td>
                                     <td><x-verdict-badge :verdict="$item->last_verdict" /></td>
-                                    <td class="text-ink-muted whitespace-nowrap">{{ $item->last_run_at?->format('d.m.Y H:i') ?? '—' }}</td>
+                                    <td class="text-ink-muted whitespace-nowrap">{{ \App\Support\MskTime::format($item->last_run_at) ?? '—' }}</td>
                                 </tr>
                             @empty
                                 <tr>
@@ -65,7 +65,7 @@
                                     <td class="font-mono"><a class="ui-link" href="{{ route('checks.show', $check) }}">{{ \Illuminate\Support\Str::limit($check->subject, 36) }}</a></td>
                                     <td>{{ $check->type->label() }}</td>
                                     <td><x-verdict-badge :verdict="$check->verdict" /></td>
-                                    <td class="text-ink-muted">{{ $check->created_at->format('d.m.Y H:i') }}</td>
+                                    <td class="text-ink-muted">{{ \App\Support\MskTime::format($check->created_at) ?? '—' }}</td>
                                     <td>
                                         @if ($check->isCompleted())
                                             <a class="ui-link text-sm" href="{{ route('checks.pdf', [$check, 'variant' => 'file']) }}">{{ __('aml.pdf_file') }}</a>

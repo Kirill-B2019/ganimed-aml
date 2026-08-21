@@ -55,7 +55,7 @@ class CheckController extends Controller
                     $check->verdict?->value,
                     $check->risk_score,
                     $check->user?->name,
-                    $check->created_at?->format('Y-m-d H:i:s'),
+                    \App\Support\MskTime::format($check->created_at, 'Y-m-d H:i:s'),
                 ]);
             }
             fclose($out);

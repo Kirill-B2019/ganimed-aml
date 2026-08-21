@@ -7,6 +7,7 @@ use App\Enums\CheckType;
 use App\Enums\CheckVerdict;
 use App\Models\Check;
 use App\Models\User;
+use App\Support\MskTime;
 use App\Support\TronAddress;
 use App\Services\Onchain\AssetNarrativeService;
 use App\Services\Onchain\TokenCompositionChart;
@@ -78,7 +79,7 @@ class CheckReportPresenter
         return [
             'check' => $check,
             'compact' => $compact,
-            'generatedAt' => now(),
+            'generatedAt' => MskTime::stamp(now()),
             'footer' => (string) config('report.footer'),
             'brand' => 'GANIMED AML',
             'logoMark' => public_path('images/logo-gnd-mark.png'),
@@ -111,7 +112,7 @@ class CheckReportPresenter
             'outflowRows' => $outflowRows,
             'inflowBars' => $this->withBarPercents($this->inflowBars($inflowRows)),
             'walletGraph' => $walletGraph,
-            'walletGraphSvg' => $walletGraph !== [] ? $this->graphChart->svg($walletGraph) : '',
+            'walletGraphSvg' => $walletGraph !== [] ? $this->graphChart->svg($walletGraph, forPdf: $pdf) : '',
             'walletGraphPeers' => $walletGraphPeers,
             'walletGraphLegend' => $walletGraphPeers !== [] ? $this->graphChart->legend($walletGraphPeers) : [],
             'walletGraphPending' => (bool) ($walletGraph['pending'] ?? false),
@@ -322,11 +323,14 @@ class CheckReportPresenter
      */
     private function freshness(Check $check, array $onchain, bool $isWalletReport): array
     {
+        $goplus = MskTime::format($check->updated_at);
+        $trongrid = $isWalletReport && ! empty($onchain['fetched_at'])
+            ? MskTime::format((string) $onchain['fetched_at'])
+            : null;
+
         return [
-            'goplus' => $check->updated_at?->timezone(config('app.timezone'))->format('d.m.Y H:i'),
-            'trongrid' => $isWalletReport && ! empty($onchain['fetched_at'])
-                ? (string) $onchain['fetched_at']
-                : null,
+            'goplus' => $goplus !== null ? $goplus.' '.__('aml.timezone_msk') : null,
+            'trongrid' => $trongrid !== null ? $trongrid.' '.__('aml.timezone_msk') : null,
             'tx_window' => $isWalletReport ? ($onchain['tx_window'] ?? null) : null,
         ];
     }
@@ -638,7 +642,7 @@ class CheckReportPresenter
         if ($check->verdictIsLocked()) {
             $payload = $check->overridePayload();
             $analyst = isset($payload['by']) ? User::query()->find($payload['by']) : null;
-            $at = isset($payload['at']) ? \Illuminate\Support\Carbon::parse((string) $payload['at'])->format('d.m.Y H:i') : null;
+            $at = isset($payload['at']) ? MskTime::format((string) $payload['at']) : null;
             $note = is_string($payload['note'] ?? null) && $payload['note'] !== '' ? $payload['note'] : null;
             $rows[] = ['label' => __('aml.verdict'), 'value' => $check->verdict?->label() ?? '—'];
             $rows[] = ['label' => __('aml.override_by'), 'value' => $analyst?->name ?? '—'];
@@ -769,7 +773,7 @@ class CheckReportPresenter
                 ? $payload['note']
                 : null;
             $analyst = isset($payload['by']) ? User::query()->find($payload['by']) : null;
-            $at = isset($payload['at']) ? \Illuminate\Support\Carbon::parse((string) $payload['at'])->format('d.m.Y H:i') : null;
+            $at = isset($payload['at']) ? MskTime::format((string) $payload['at']) : null;
             $parts[] = __('aml.conclusion_analyst', [
                 'verdict' => $check->verdict?->label() ?? '—',
                 'note' => $note ?? __('aml.override_no_note'),

@@ -41,7 +41,7 @@
                                 <td class="text-ink-muted">{{ $case->note }}</td>
                                 <td class="tabular-nums">{{ $case->checks_count }}</td>
                                 <td class="tabular-nums">{{ $case->watch_items_count }}</td>
-                                <td class="text-ink-muted whitespace-nowrap">{{ $case->created_at->format('d.m.Y H:i') }}</td>
+                                <td class="text-ink-muted whitespace-nowrap">{{ \App\Support\MskTime::format($case->created_at) ?? '—' }}</td>
                             </tr>
                         @empty
                             <tr>

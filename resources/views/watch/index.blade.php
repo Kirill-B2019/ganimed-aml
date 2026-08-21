@@ -91,7 +91,7 @@
                                     @endif
                                 </td>
                                 <td><x-verdict-badge :verdict="$item->last_verdict" /></td>
-                                <td class="text-ink-muted whitespace-nowrap">{{ $item->last_run_at?->format('d.m.Y H:i') ?? '—' }}</td>
+                                <td class="text-ink-muted whitespace-nowrap">{{ \App\Support\MskTime::format($item->last_run_at) ?? '—' }}</td>
                                 <td>
                                     <form method="POST" action="{{ route('watch.destroy', $item) }}">
                                         @csrf

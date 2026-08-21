@@ -164,6 +164,7 @@ return [
     'report_title_token' => 'Отчёт безопасности токена',
     'report_title_url' => 'Отчёт безопасности URL',
     'generated_at' => 'Сформирован',
+    'timezone_msk' => 'МСК',
 
     'radar_title' => 'Радар рисков GoPlus',
     'radar_hint' => 'Шкала 0–100. Значение 100 — флаг провайдера равен 1.',

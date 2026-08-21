@@ -49,7 +49,7 @@
                                             <a class="ui-link" href="{{ route('checks.show', $check) }}">{{ \Illuminate\Support\Str::limit($check->subject, 28) }}</a>
                                         </td>
                                         <td><x-verdict-badge :verdict="$check->verdict" /></td>
-                                        <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at->format('d.m.Y H:i') }}</td>
+                                        <td class="text-ink-muted whitespace-nowrap">{{ \App\Support\MskTime::format($check->created_at) ?? '—' }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -84,7 +84,7 @@
                                         </td>
                                         <td>{{ $check->type->label() }}</td>
                                         <td><x-verdict-badge :verdict="$check->verdict" /></td>
-                                        <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at->format('d.m.Y H:i') }}</td>
+                                        <td class="text-ink-muted whitespace-nowrap">{{ \App\Support\MskTime::format($check->created_at) ?? '—' }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
