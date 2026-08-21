@@ -193,6 +193,12 @@ class OnchainEnrichmentTest extends TestCase
         $this->assertGreaterThanOrEqual(20, $check->risk_score);
         $this->assertTrue(collect($check->flags)->contains(fn ($flag) => ($flag['key'] ?? '') === 'onchain_hygiene'));
 
+        $row = collect(app(\App\Services\Reports\CheckReportPresenter::class)->data($check)['hotFlags'])
+            ->firstWhere('field', 'onchain_hygiene');
+        $this->assertNotNull($row);
+        $this->assertSame(20, $row['points']);
+        $this->assertSame('floor', $row['points_mode']);
+
         $this->withSession(['locale' => 'ru'])
             ->actingAs($user)
             ->get(route('checks.show', $check))
@@ -200,7 +206,8 @@ class OnchainEnrichmentTest extends TestCase
             ->assertSee('Файл: на проверку', false)
             ->assertSee('Ончейн: на проверку', false)
             ->assertSee('GoPlus: Чисто', false)
-            ->assertSee('На проверке', false);
+            ->assertSee('На проверке', false)
+            ->assertSee('мин. 20', false);
     }
 
     public function test_onchain_review_does_not_demote_block(): void

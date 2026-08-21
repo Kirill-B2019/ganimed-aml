@@ -253,6 +253,7 @@ return [
     'score_rule_base' => 'Starting :points when any review flag is present',
     'score_rule_cap' => 'Not above :cap',
     'score_rule_onchain' => 'If the chain has noise or a multisig — not below :floor',
+    'score_floor' => 'min. :floor',
     'score_rule_analyst_block' => 'Analyst changed the verdict to block',
     'score_rule_analyst_manual' => 'Analyst marked the file as manually verified (same rank as clear)',
     'score_formula_block' => 'Block = :score',

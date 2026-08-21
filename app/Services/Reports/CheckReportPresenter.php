@@ -268,12 +268,7 @@ class CheckReportPresenter
             $rows = [];
             foreach ($check->flags ?? [] as $flag) {
                 $key = (string) ($flag['key'] ?? '');
-                $rows[] = [
-                    'field' => $key,
-                    'value' => is_array($flag['value'] ?? null) ? json_encode($flag['value']) : (string) ($flag['value'] ?? ''),
-                    'meaning' => __('aml.flags.'.$key),
-                    'points' => $pointsByKey[$key] ?? 0,
-                ];
+                $rows[] = $this->flagRow($key, is_array($flag['value'] ?? null) ? json_encode($flag['value']) : (string) ($flag['value'] ?? ''), __('aml.flags.'.$key), $pointsByKey);
             }
 
             return $rows;
@@ -285,12 +280,12 @@ class CheckReportPresenter
             if ($value === '' || $value === null) {
                 $value = '—';
             }
-            $rows[] = [
-                'field' => $field,
-                'value' => is_scalar($value) ? (string) $value : json_encode($value),
-                'meaning' => __('aml.flag_help.'.$field),
-                'points' => $pointsByKey[$field] ?? 0,
-            ];
+            $rows[] = $this->flagRow(
+                $field,
+                is_scalar($value) ? (string) $value : json_encode($value),
+                __('aml.flag_help.'.$field),
+                $pointsByKey,
+            );
         }
 
         foreach ($check->flags ?? [] as $flag) {
@@ -298,12 +293,14 @@ class CheckReportPresenter
             if ($key === '' || in_array($key, self::ADDRESS_FIELDS, true)) {
                 continue;
             }
-            $rows[] = [
-                'field' => $key,
-                'value' => is_array($flag['value'] ?? null) ? json_encode($flag['value']) : (string) ($flag['value'] ?? ''),
-                'meaning' => __('aml.flags.'.$key),
-                'points' => $pointsByKey[$key] ?? 0,
-            ];
+            $rows[] = $this->flagRow(
+                $key,
+                is_array($flag['value'] ?? null) ? json_encode($flag['value']) : (string) ($flag['value'] ?? ''),
+                __('aml.flag_help.'.$key) !== 'aml.flag_help.'.$key
+                    ? __('aml.flag_help.'.$key)
+                    : __('aml.flags.'.$key),
+                $pointsByKey,
+            );
         }
 
         return $rows;
@@ -326,6 +323,21 @@ class CheckReportPresenter
         }
 
         return [$hot, $quiet];
+    }
+
+    /**
+     * @param  array<string, int>  $pointsByKey
+     * @return array{field: string, value: string, meaning: string, points: int, points_mode: string}
+     */
+    private function flagRow(string $field, string $value, string $meaning, array $pointsByKey): array
+    {
+        return [
+            'field' => $field,
+            'value' => $value,
+            'meaning' => $meaning,
+            'points' => $pointsByKey[$field] ?? 0,
+            'points_mode' => $field === 'onchain_hygiene' ? 'floor' : 'add',
+        ];
     }
 
     /**
@@ -428,7 +440,9 @@ class CheckReportPresenter
             }
             $points[$key] = match ((string) ($flag['severity'] ?? 'review')) {
                 'block' => RiskScoringService::BLOCK_SCORE,
-                'review' => $key === 'onchain_hygiene' ? 0 : RiskScoringService::REVIEW_PER_FLAG,
+                'review' => $key === 'onchain_hygiene'
+                    ? RiskScoringService::ONCHAIN_FLOOR
+                    : RiskScoringService::REVIEW_PER_FLAG,
                 default => 0,
             };
         }

@@ -306,13 +306,7 @@
                         <td class="mono">{{ $row['field'] }}</td>
                         <td>{{ $row['value'] }}</td>
                         <td>
-                            @if ((int) ($row['points'] ?? 0) === 100)
-                                {{ __('aml.verdicts.block') }} (100)
-                            @elseif ((int) ($row['points'] ?? 0) > 0)
-                                +{{ (int) $row['points'] }}
-                            @else
-                                0
-                            @endif
+                            @include('checks.partials.flag-points', ['row' => $row])
                         </td>
                         <td>{{ $row['meaning'] }}</td>
                     </tr>

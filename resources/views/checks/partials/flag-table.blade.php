@@ -24,13 +24,7 @@
                         <td class="py-2 pr-4 font-mono text-xs text-ink-muted">{{ $row['field'] }}</td>
                         <td @class(['py-2 pr-4 font-mono', 'font-semibold text-amber-900' => $hot])>{{ $row['value'] }}</td>
                         <td class="py-2 pr-4 font-mono text-ink">
-                            @if ((int) ($row['points'] ?? 0) === 100)
-                                {{ __('aml.verdicts.block') }} (100)
-                            @elseif ((int) ($row['points'] ?? 0) > 0)
-                                +{{ (int) $row['points'] }}
-                            @else
-                                0
-                            @endif
+                            @include('checks.partials.flag-points', ['row' => $row])
                         </td>
                         <td class="py-2 text-ink">{{ $row['meaning'] }}</td>
                     </tr>

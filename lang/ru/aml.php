@@ -253,6 +253,7 @@ return [
     'score_rule_base' => 'Стартовые :points при наличии review-флагов',
     'score_rule_cap' => 'Не выше :cap',
     'score_rule_onchain' => 'Если на сети шум или мультиподпись — не ниже :floor',
+    'score_floor' => 'мин. :floor',
     'score_rule_analyst_block' => 'Аналитик сменил вердикт на блок',
     'score_rule_analyst_manual' => 'Аналитик отметил файл как проверенный вручную (по статусу как «Чисто»)',
     'score_formula_block' => 'Блок = :score',
