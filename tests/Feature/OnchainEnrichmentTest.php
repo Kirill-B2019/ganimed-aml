@@ -208,4 +208,71 @@ class OnchainEnrichmentTest extends TestCase
         $this->assertSame('block', $check->verdict->value);
         $this->assertSame(90, $check->risk_score);
     }
+
+    public function test_trongrid_retries_account_after_429(): void
+    {
+        Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::sequence()
+                ->push(['Error' => 'request rate of (getAccount) exceeded the allowed_rps(1)'], 429)
+                ->push([
+                    'data' => [[
+                        'balance' => 1000000,
+                        'trc20' => [],
+                        'owner_permission' => [
+                            'threshold' => 1,
+                            'keys' => [['address' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk', 'weight' => 1]],
+                        ],
+                    ]],
+                ]),
+        ]);
+
+        $result = app(OnchainEnrichmentService::class)->forAddress(
+            'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'tron',
+        );
+
+        $this->assertSame('trongrid', $result['source']);
+        $this->assertSame('1', $result['balances'][0]['amount']);
+        $this->assertArrayNotHasKey('error', $result);
+        Http::assertSentCount(4);
+    }
+
+    public function test_rate_limit_enrichment_is_refetched_on_fill(): void
+    {
+        Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::response([
+                'data' => [[
+                    'balance' => 2500000,
+                    'trc20' => [],
+                    'owner_permission' => ['threshold' => 1, 'keys' => []],
+                ]],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        $check = $user->checks()->create([
+            'type' => CheckType::Address,
+            'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'chain_id' => 'tron',
+            'status' => 'completed',
+            'verdict' => 'clear',
+            'risk_score' => 0,
+            'locale' => 'ru',
+            'raw_response' => ['sanctioned' => '0'],
+            'enrichment' => [
+                'source' => 'trongrid',
+                'error' => 'HTTP request returned status code 429: {"Error":"allowed_rps(1)"}',
+            ],
+        ]);
+
+        app(OnchainEnrichmentService::class)->fill($check);
+        $check->refresh();
+
+        $this->assertArrayNotHasKey('error', $check->enrichment);
+        $this->assertSame('2.5', $check->enrichment['balances'][0]['amount']);
+    }
 }

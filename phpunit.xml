@@ -35,5 +35,7 @@
         <env name="NIGHTWATCH_ENABLED" value="false"/>
         <env name="GOPLUS_APP_KEY" value="test-key"/>
         <env name="GOPLUS_APP_SECRET" value="test-secret"/>
+        <env name="ONCHAIN_MIN_INTERVAL_MS" value="0"/>
+        <env name="ONCHAIN_RETRY_MS" value="0"/>
     </php>
 </phpunit>

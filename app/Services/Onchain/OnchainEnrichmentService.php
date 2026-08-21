@@ -29,7 +29,7 @@ class OnchainEnrichmentService
             return $check;
         }
 
-        if (! $check->enrichment) {
+        if ($this->shouldRefetch(is_array($check->enrichment) ? $check->enrichment : null)) {
             try {
                 $check->update(['enrichment' => $this->forAddress(
                     $check->subject,
@@ -49,6 +49,25 @@ class OnchainEnrichmentService
         }
 
         return $this->promoteOnchainReview($check);
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $enrichment
+     */
+    private function shouldRefetch(?array $enrichment): bool
+    {
+        if ($enrichment === null || $enrichment === []) {
+            return true;
+        }
+
+        $error = (string) ($enrichment['error'] ?? '');
+        if ($error === '') {
+            return false;
+        }
+
+        return str_contains($error, '429')
+            || str_contains($error, 'allowed_rps')
+            || str_contains($error, 'Too Many Attempts');
     }
 
     /**
