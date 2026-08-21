@@ -154,6 +154,11 @@ class OnchainEnrichmentService
             'pending' => false,
             'hop2_queued' => true,
         ];
+        $graphNodes = $this->nodesById($onchain['graph']['nodes']);
+        $graphEdges = $onchain['graph']['edges'];
+        $this->annotateNodes($graphNodes, $graphEdges);
+        $onchain['graph']['nodes'] = array_values($graphNodes);
+        $onchain['graph']['edges'] = $graphEdges;
         $check->update(['enrichment' => $onchain]);
 
         return $check->refresh();
@@ -346,9 +351,12 @@ class OnchainEnrichmentService
         $neighborCap = (int) config('onchain.graph_neighbor_cap', 12);
         $truncated = $this->trimGraph($nodes, $edges, $subject, $maxNodes, $neighborCap);
 
+        $edges = $this->uniqueEdges($edges);
+        $this->annotateNodes($nodes, $edges);
+
         return [
             'nodes' => array_values($nodes),
-            'edges' => $this->uniqueEdges($edges),
+            'edges' => $edges,
             'truncated' => $truncated,
             'pending' => $deep,
             'hop2_queued' => false,
@@ -371,12 +379,17 @@ class OnchainEnrichmentService
                 continue;
             }
             $this->ensureHop1($nodes, $peer);
+            $raw = (string) ($value['amount'] ?? '0');
             $edges[] = [
                 'from' => $from !== '' ? $from : $subject,
                 'to' => $to !== '' ? $to : $subject,
                 'asset' => 'TRX',
                 'count' => 1,
                 'direction' => $direction,
+                'raw' => $raw,
+                'decimals' => 6,
+                'name' => 'TRON',
+                'hygiene' => $this->edgeHygiene('TRX', $raw, 6, null, 'TRON'),
             ];
         }
     }
@@ -418,12 +431,20 @@ class OnchainEnrichmentService
             if ($from === '' && $to === '') {
                 continue;
             }
+            $raw = (string) ($tx['call_value'] ?? $tx['value'] ?? '0');
+            if (! preg_match('/^-?\d+$/', $raw)) {
+                $raw = '0';
+            }
             $edges[] = [
                 'from' => $from !== '' ? $from : $subject,
                 'to' => $to !== '' ? $to : $subject,
                 'asset' => 'TRX',
                 'count' => 1,
                 'direction' => 'internal',
+                'raw' => $raw,
+                'decimals' => 6,
+                'name' => 'TRON',
+                'hygiene' => $this->edgeHygiene('TRX', $raw, 6, null, 'TRON'),
             ];
         }
     }
@@ -450,14 +471,23 @@ class OnchainEnrichmentService
     private function edge(string $from, string $to, array $tx, string $direction): array
     {
         $info = is_array($tx['token_info'] ?? null) ? $tx['token_info'] : [];
+        $symbol = (string) ($info['symbol'] ?? 'TRC20');
+        $decimals = (int) ($info['decimals'] ?? 6);
+        $raw = (string) ($tx['value'] ?? '0');
+        $contract = (string) ($info['address'] ?? '');
+        $name = (string) ($info['name'] ?? '');
 
         return [
             'from' => $from,
             'to' => $to,
-            'asset' => (string) ($info['symbol'] ?? 'TRC20'),
+            'asset' => $symbol,
             'count' => 1,
             'direction' => $direction,
-            'contract' => (string) ($info['address'] ?? ''),
+            'contract' => $contract,
+            'raw' => $raw,
+            'decimals' => $decimals,
+            'name' => $name,
+            'hygiene' => $this->edgeHygiene($symbol, $raw, $decimals, $contract, $name),
         ];
     }
 
@@ -519,6 +549,87 @@ class OnchainEnrichmentService
     }
 
     /**
+     * @param  array<string, array<string, mixed>>  $nodes
+     * @param  list<array<string, mixed>>  $edges
+     */
+    private function annotateNodes(array &$nodes, array $edges): void
+    {
+        foreach ($nodes as $id => &$node) {
+            $in = 0;
+            $out = 0;
+            $flags = [];
+            $hop = (int) ($node['hop'] ?? 1);
+            foreach ($edges as $edge) {
+                if (! is_array($edge)) {
+                    continue;
+                }
+                $from = (string) ($edge['from'] ?? '');
+                $to = (string) ($edge['to'] ?? '');
+                if ($from !== $id && $to !== $id) {
+                    continue;
+                }
+                $count = (int) ($edge['count'] ?? 1);
+                $direction = (string) ($edge['direction'] ?? '');
+                if ($hop === 0) {
+                    if ($direction === 'in' && $to === $id) {
+                        $in += $count;
+                    }
+                    if ($direction === 'out' && $from === $id) {
+                        $out += $count;
+                    }
+                } else {
+                    if ($direction === 'in' && $from === $id) {
+                        $in += $count;
+                    }
+                    if ($direction === 'out' && $to === $id) {
+                        $out += $count;
+                    }
+                    if ($direction === 'internal') {
+                        if ($from === $id) {
+                            $out += $count;
+                        }
+                        if ($to === $id) {
+                            $in += $count;
+                        }
+                    }
+                }
+                $hygiene = (string) ($edge['hygiene'] ?? '');
+                if ($hygiene === 'dust' && ! in_array('dust', $flags, true)) {
+                    $flags[] = 'dust';
+                }
+                if ($hygiene === 'spam' && ! in_array('spam', $flags, true)) {
+                    $flags[] = 'spam';
+                }
+            }
+            $node['in_count'] = $in;
+            $node['out_count'] = $out;
+            $node['flags'] = $flags;
+        }
+        unset($node);
+    }
+
+    private function edgeHygiene(string $symbol, string $raw, int $decimals, ?string $contract, ?string $name): string
+    {
+        $amount = (float) str_replace(',', '', $this->formatAmount($raw, max(0, $decimals)));
+        if (strtoupper($symbol) === 'TRX') {
+            if ($amount > 0 && $amount < 0.001) {
+                return 'dust';
+            }
+
+            return 'trx';
+        }
+
+        $kind = $this->narrative->autoKind([
+            'symbol' => $symbol,
+            'name' => (string) $name,
+            'contract' => (string) $contract,
+            'kind' => 'trc20',
+        ]);
+
+        return $kind === 'canonical' ? 'stable' : 'spam';
+    }
+
+    /**
      * @param  list<array<string, mixed>>  $edges
      * @return list<array<string, mixed>>
      */
@@ -533,10 +644,26 @@ class OnchainEnrichmentService
             if (! isset($groups[$key])) {
                 $groups[$key] = $edge;
                 $groups[$key]['count'] = (int) ($edge['count'] ?? 1);
+                $groups[$key]['raw'] = (string) ($edge['raw'] ?? '0');
             } else {
                 $groups[$key]['count'] += (int) ($edge['count'] ?? 1);
+                $groups[$key]['raw'] = $this->addDecimalStrings(
+                    (string) ($groups[$key]['raw'] ?? '0'),
+                    (string) ($edge['raw'] ?? '0'),
+                );
             }
         }
+
+        foreach ($groups as &$group) {
+            $group['hygiene'] = $this->edgeHygiene(
+                (string) ($group['asset'] ?? ''),
+                (string) ($group['raw'] ?? '0'),
+                (int) ($group['decimals'] ?? 6),
+                (string) ($group['contract'] ?? ''),
+                (string) ($group['name'] ?? ''),
+            );
+        }
+        unset($group);
 
         return array_values($groups);
     }

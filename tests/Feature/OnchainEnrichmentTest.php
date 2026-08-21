@@ -9,6 +9,7 @@ use App\Jobs\ExpandWalletGraphJob;
 use App\Models\Check;
 use App\Models\User;
 use App\Services\Onchain\OnchainEnrichmentService;
+use App\Services\Onchain\WalletGraphChart;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -479,5 +480,76 @@ class OnchainEnrichmentTest extends TestCase
         );
         $this->assertSame('unknown', $node['kind'] ?? null);
         $this->assertArrayNotHasKey('error', $check->enrichment);
+    }
+
+    public function test_graph_marks_dust_and_spam_and_links_tronscan(): void
+    {
+        Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/internal-transactions*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response([
+                'data' => [[
+                    'from' => 'TYgh8XECsuM9sieDKQxbBjmAFpfVPhTUjL',
+                    'to' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+                    'value' => '3000000',
+                    'token_info' => [
+                        'symbol' => 'USDT',
+                        'address' => 'TYgh8XECsuM9sieDKQxbBjmAFpfVPhTUjL',
+                        'decimals' => 6,
+                        'name' => 'Tether',
+                    ],
+                ]],
+            ]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response([
+                'data' => [[
+                    'txID' => 'tx-dust',
+                    'block_timestamp' => 1700000000000,
+                    'raw_data' => [
+                        'contract' => [[
+                            'type' => 'TransferContract',
+                            'parameter' => [
+                                'value' => [
+                                    'amount' => 2,
+                                    'owner_address' => '41c12276056787e8e6395a040e051ad516cd96898c',
+                                    'to_address' => '4140497af024c1d8ca00848de32d1d3dc4ef652598',
+                                ],
+                            ],
+                        ]],
+                    ],
+                ]],
+            ]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::response([
+                'data' => [['balance' => 0, 'trc20' => [], 'owner_permission' => ['threshold' => 1, 'keys' => []]]],
+            ]),
+        ]);
+
+        $result = app(OnchainEnrichmentService::class)->forAddress(
+            'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'tron',
+        );
+
+        $spam = collect($result['graph']['nodes'])->first(
+            fn ($node) => ($node['id'] ?? '') === 'TYgh8XECsuM9sieDKQxbBjmAFpfVPhTUjL'
+        );
+        $this->assertNotNull($spam);
+        $this->assertContains('spam', $spam['flags'] ?? []);
+        $this->assertGreaterThan(0, (int) ($spam['in_count'] ?? 0));
+
+        $dustEdge = collect($result['graph']['edges'])->first(
+            fn ($edge) => ($edge['hygiene'] ?? '') === 'dust'
+        );
+        $this->assertNotNull($dustEdge);
+        $dustNode = collect($result['graph']['nodes'])->first(
+            fn ($node) => in_array('dust', $node['flags'] ?? [], true)
+        );
+        $this->assertNotNull($dustNode);
+
+        $svg = app(WalletGraphChart::class)->svg($result['graph']);
+        $this->assertStringContainsString('tronscan.org/#/address/', $svg);
+        $this->assertStringContainsString('target="_blank"', $svg);
+        $this->assertStringContainsString(__('aml.graph_kind_dust'), $svg);
+        $this->assertStringContainsString(__('aml.graph_kind_spam'), $svg);
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'TYgh8XECsuM9sieDKQxbBjmAFpfVPhTUjL')
+            && ! str_contains($request->url(), 'transactions'));
     }
 }

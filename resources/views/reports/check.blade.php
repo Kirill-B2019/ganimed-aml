@@ -368,9 +368,12 @@
         @if (! empty($walletGraphSvg))
             <div>{!! $walletGraphSvg !!}</div>
             <p class="muted">
+                {{ __('aml.graph_edge_in') }} ·
+                {{ __('aml.graph_edge_out') }} ·
                 {{ __('aml.graph_kind_eoa') }} ·
                 {{ __('aml.graph_kind_contract') }} ·
                 {{ __('aml.graph_kind_token') }} ·
+                {{ __('aml.graph_kind_dust') }} ·
                 {{ __('aml.graph_kind_spam') }} ·
                 {{ __('aml.graph_kind_unknown') }}
             </p>
@@ -421,12 +424,59 @@
             <tbody>
                 @foreach ($inflowRows as $row)
                     <tr class="{{ ! empty($row['tone']) ? 'row-'.$row['tone'] : '' }}">
-                        <td class="mono">{{ $row['from'] }}</td>
+                        <td class="mono">
+                            @if (! empty($row['explorer']))
+                                <a href="{{ $row['explorer'] }}">{{ $row['from'] }}</a>
+                            @else
+                                {{ $row['from'] }}
+                            @endif
+                        </td>
                         <td>{{ $row['symbol'] }}</td>
                         <td class="num">{{ $row['amount'] }}</td>
                         <td>{{ $row['comment'] }}</td>
                     </tr>
                 @endforeach
+            </tbody>
+        </table>
+
+        <h2>{{ __('aml.outflows') }}</h2>
+        <p class="muted">{{ __('aml.outflow_hint') }}</p>
+        @if (empty($outflowRows))
+            <p class="muted">{{ __('aml.no_outflows') }}</p>
+        @else
+        <table class="sheet">
+            <colgroup>
+                <col style="width: 34%">
+                <col style="width: 16%">
+                <col style="width: 18%">
+                <col style="width: 32%">
+            </colgroup>
+            <thead>
+                <tr>
+                    <th>{{ __('aml.outflow_to') }}</th>
+                    <th>{{ __('aml.inflow_asset') }}</th>
+                    <th>{{ __('aml.inflow_amount') }}</th>
+                    <th>{{ __('aml.comment') }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach ($outflowRows as $row)
+                    <tr class="{{ ! empty($row['tone']) ? 'row-'.$row['tone'] : '' }}">
+                        <td class="mono">
+                            @if (! empty($row['explorer']))
+                                <a href="{{ $row['explorer'] }}">{{ $row['to'] }}</a>
+                            @else
+                                {{ $row['to'] }}
+                            @endif
+                        </td>
+                        <td>{{ $row['symbol'] }}</td>
+                        <td class="num">{{ $row['amount'] }}</td>
+                        <td>{{ $row['comment'] }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+        @endif
             </tbody>
         </table>
         @endif

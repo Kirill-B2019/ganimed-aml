@@ -472,7 +472,58 @@
                                             };
                                         @endphp
                                         <tr class="border-t border-ink-line align-top {{ $rowBg }}">
-                                            <td class="py-2 pr-3 font-mono text-[11px] break-all text-ink-muted">{{ $row['from'] }}</td>
+                                            <td class="py-2 pr-3 font-mono text-[11px] break-all">
+                                                @if (! empty($row['explorer']))
+                                                    <a href="{{ $row['explorer'] }}" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline decoration-indigo-200 hover:text-ink">{{ $row['from'] }}</a>
+                                                @else
+                                                    <span class="text-ink-muted">{{ $row['from'] }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="py-2 pr-3">{{ $row['symbol'] }}</td>
+                                            <td class="py-2 pr-3 font-mono text-right">{{ $row['amount'] }}</td>
+                                            <td class="py-2 pr-3">{{ $row['tx_count'] ?? '' }}</td>
+                                            <td class="py-2 text-ink-muted">{{ $row['comment'] }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </x-report-section>
+
+                <x-report-section :title="__('aml.outflows')" :hint="__('aml.outflow_hint')">
+                    @if (empty($outflowRows))
+                        <p class="text-sm text-ink-muted">{{ __('aml.no_outflows') }}</p>
+                    @else
+                        <div class="mt-4 overflow-x-auto">
+                            <table class="min-w-full text-sm">
+                                <thead>
+                                    <tr class="text-left text-xs text-ink-muted">
+                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.outflow_to') }}</th>
+                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.inflow_asset') }}</th>
+                                        <th class="pb-2 pr-3 font-medium text-right">{{ __('aml.inflow_amount') }}</th>
+                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.inflow_count') }}</th>
+                                        <th class="pb-2 font-medium">{{ __('aml.comment') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($outflowRows as $row)
+                                        @php
+                                            $rowBg = match ($row['tone'] ?? '') {
+                                                'success' => 'bg-emerald-50',
+                                                'warning' => 'bg-amber-50',
+                                                'danger' => 'bg-rose-50',
+                                                default => '',
+                                            };
+                                        @endphp
+                                        <tr class="border-t border-ink-line align-top {{ $rowBg }}">
+                                            <td class="py-2 pr-3 font-mono text-[11px] break-all">
+                                                @if (! empty($row['explorer']))
+                                                    <a href="{{ $row['explorer'] }}" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline decoration-indigo-200 hover:text-ink">{{ $row['to'] }}</a>
+                                                @else
+                                                    <span class="text-ink-muted">{{ $row['to'] }}</span>
+                                                @endif
+                                            </td>
                                             <td class="py-2 pr-3">{{ $row['symbol'] }}</td>
                                             <td class="py-2 pr-3 font-mono text-right">{{ $row['amount'] }}</td>
                                             <td class="py-2 pr-3">{{ $row['tx_count'] ?? '' }}</td>

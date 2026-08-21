@@ -67,6 +67,7 @@ class CheckReportPresenter
 
         $balanceRows = $isWalletReport && $hasOnchain ? $this->balanceRows($check, $onchain, $usdSummary) : [];
         $inflowRows = $isWalletReport && $hasOnchain ? $this->inflowRows($check, $onchain) : [];
+        $outflowRows = $isWalletReport && $hasOnchain ? $this->outflowRows($check, $onchain) : [];
         $walletGraph = $isWalletReport && $hasOnchain && is_array($onchain['graph'] ?? null)
             ? $onchain['graph']
             : [];
@@ -106,6 +107,7 @@ class CheckReportPresenter
             'objectRows' => $this->objectRows($check, $isWalletReport && $hasOnchain, $onchain, $usdSummary),
             'balanceRows' => $balanceRows,
             'inflowRows' => $inflowRows,
+            'outflowRows' => $outflowRows,
             'inflowBars' => $this->withBarPercents($this->inflowBars($inflowRows)),
             'walletGraph' => $walletGraph,
             'walletGraphSvg' => $walletGraph !== [] ? $this->graphChart->svg($walletGraph) : '',
@@ -461,6 +463,31 @@ class CheckReportPresenter
                 'bucket' => $bucket,
                 'comment' => $this->inflowComment($check, $row),
                 'tone' => $this->inflowTone($bucket),
+                'explorer' => TronAddress::explorerUrl((string) ($row['from'] ?? '')),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $onchain
+     * @return list<array<string, mixed>>
+     */
+    private function outflowRows(Check $check, array $onchain): array
+    {
+        $rows = [];
+        foreach ($onchain['outflows'] ?? [] as $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $bucket = $this->inflowBucket($check, $row);
+            $rows[] = [
+                ...$row,
+                'bucket' => $bucket,
+                'comment' => $this->inflowComment($check, $row),
+                'tone' => $this->inflowTone($bucket),
+                'explorer' => TronAddress::explorerUrl((string) ($row['to'] ?? '')),
             ];
         }
 
