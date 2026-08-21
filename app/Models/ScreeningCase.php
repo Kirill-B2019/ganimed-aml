@@ -11,6 +11,7 @@ class ScreeningCase extends Model
 {
     protected $fillable = [
         'user_id',
+        'slug',
         'name',
         'note',
     ];

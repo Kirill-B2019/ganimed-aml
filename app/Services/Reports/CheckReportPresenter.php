@@ -393,6 +393,7 @@ class CheckReportPresenter
             $rows[] = [
                 ...$row,
                 'kind' => $kind,
+                'label' => $this->assetLabel($row),
                 'overridable' => $check->canOverrideVerdict() && ! $this->narrative->isStatusLocked($row),
                 'tone' => match ($kind) {
                     'native', 'canonical' => 'success',
@@ -406,6 +407,24 @@ class CheckReportPresenter
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function assetLabel(array $row): string
+    {
+        $symbol = trim((string) ($row['symbol'] ?? ''));
+        $name = trim((string) ($row['name'] ?? ''));
+        $contract = (string) ($row['contract'] ?? '');
+        $nameIsAddress = $name === $contract
+            || (strlen($name) >= 26 && str_starts_with($name, 'T'));
+
+        if ($name === '' || $nameIsAddress || strcasecmp($name, $symbol) === 0) {
+            return $symbol !== '' ? $symbol : $name;
+        }
+
+        return trim($symbol.' '.$name);
     }
 
     /**

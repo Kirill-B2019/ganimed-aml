@@ -4,19 +4,22 @@
 namespace App\Http\Controllers;
 
 use App\Models\ScreeningCase;
+use App\Services\Ops\DefaultScreeningCases;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ScreeningCaseController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, DefaultScreeningCases $defaults): View
     {
+        $defaults->ensureFor($request->user());
+
         $cases = ScreeningCase::query()
             ->where('user_id', $request->user()->id)
-            ->withCount('checks')
-            ->latest()
-            ->paginate(20);
+            ->withCount(['checks', 'watchItems'])
+            ->orderBy('name')
+            ->paginate(30);
 
         return view('cases.index', compact('cases'));
     }
@@ -34,13 +37,18 @@ class ScreeningCaseController extends Controller
             'note' => $validated['note'] ?? null,
         ]);
 
-        return back()->with('status', __('aml.create_case'));
+        return redirect()
+            ->route('cases.index')
+            ->with('status', __('aml.create_case'));
     }
 
     public function show(Request $request, ScreeningCase $case): View
     {
         abort_unless($case->user_id === $request->user()->id || $request->user()->is_admin, 403);
-        $case->load(['checks' => fn ($q) => $q->latest()]);
+        $case->load([
+            'checks' => fn ($q) => $q->latest(),
+            'watchItems' => fn ($q) => $q->latest(),
+        ]);
 
         return view('cases.show', ['case' => $case]);
     }

@@ -76,6 +76,18 @@ class PdfChartTest extends TestCase
         $html = view('reports.check', $data)->render();
         $this->assertStringContainsString('class="stackbar"', $html);
         $this->assertStringContainsString('class="hbar"', $html);
+        $this->assertStringContainsString('class="sheet"', $html);
+        $this->assertStringContainsString('table-layout: fixed', $html);
+        $this->assertStringContainsString('word-break: break-all', $html);
+        $this->assertStringContainsString('<p class="muted">', $html);
+        $this->assertStringContainsString('<table class="pills">', $html);
+        $this->assertStringContainsString(__('aml.pill_eoa'), $html);
+        $this->assertStringNotContainsString('aml.pill_eoa', $html);
+        $this->assertLessThan(
+            strpos($html, '<table class="pills">'),
+            strpos($html, '<p class="muted">'),
+        );
+        $this->assertStringContainsString('class="hbar"', $html);
         $this->assertStringContainsString('width: 40%', $html);
         $this->assertStringContainsString('width: 100%', $html);
         $this->assertStringContainsString('2 · 40%', $html);

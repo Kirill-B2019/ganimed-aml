@@ -31,10 +31,14 @@
                         @csrf
                         <x-primary-button>{{ __('aml.rerun') }}</x-primary-button>
                     </form>
-                    <form method="POST" action="{{ route('watch.store') }}">
+                    <form method="POST" action="{{ route('watch.store') }}" class="flex items-center gap-2">
                         @csrf
                         <input type="hidden" name="check_id" value="{{ $check->id }}">
-                        <input type="hidden" name="interval_days" value="7">
+                        <select name="interval_days" class="ui-select text-sm" title="{{ __('aml.watch_interval') }}">
+                            @foreach ([1, 3, 7, 14, 30] as $n)
+                                <option value="{{ $n }}" @selected($n === 7)>{{ __('aml.watch_interval_n', ['n' => $n]) }}</option>
+                            @endforeach
+                        </select>
                         <x-secondary-button type="submit">{{ __('aml.watch_add') }}</x-secondary-button>
                     </form>
                 @endif

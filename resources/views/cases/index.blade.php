@@ -13,6 +13,7 @@
                 <div>
                     <x-input-label for="name" :value="__('aml.case_name')" />
                     <x-text-input id="name" name="name" class="mt-1 block w-full" required />
+                    <x-input-error class="mt-1" :messages="$errors->get('name')" />
                 </div>
                 <div>
                     <x-input-label for="note" :value="__('aml.case_note')" />
@@ -27,17 +28,25 @@
                     <thead>
                         <tr>
                             <th>{{ __('aml.case_name') }}</th>
+                            <th>{{ __('aml.case_note') }}</th>
+                            <th>{{ __('aml.case_checks') }}</th>
+                            <th>{{ __('aml.case_watches') }}</th>
                             <th>{{ __('aml.created') }}</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse ($cases as $case)
                             <tr>
-                                <td><a class="ui-link" href="{{ route('cases.show', $case) }}">{{ $case->name }}</a> · {{ $case->checks_count }}</td>
-                                <td class="text-ink-muted">{{ $case->created_at->format('d.m.Y H:i') }}</td>
+                                <td><a class="ui-link" href="{{ route('cases.show', $case) }}">{{ $case->name }}</a></td>
+                                <td class="text-ink-muted">{{ $case->note }}</td>
+                                <td class="tabular-nums">{{ $case->checks_count }}</td>
+                                <td class="tabular-nums">{{ $case->watch_items_count }}</td>
+                                <td class="text-ink-muted whitespace-nowrap">{{ $case->created_at->format('d.m.Y H:i') }}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="2" class="py-8 text-center text-ink-muted">{{ __('aml.no_cases') }}</td></tr>
+                            <tr>
+                                <td colspan="5" class="py-8 text-center text-ink-muted">{{ __('aml.no_cases') }}</td>
+                            </tr>
                         @endforelse
                     </tbody>
                 </table>

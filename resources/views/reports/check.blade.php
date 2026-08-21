@@ -11,12 +11,13 @@
         h2 { font-size: 13px; margin: 18px 0 6px; }
         h3 { font-size: 12px; margin: 12px 0 6px; }
         p { margin: 0 0 8px; line-height: 1.45; }
-        .muted { color: #555; font-size: 10px; }
+        .muted { color: #555; font-size: 10px; margin: 0 0 10px; line-height: 14px; }
+        table.pills { width: auto; border-collapse: separate; border-spacing: 4px 0; margin: 0 0 12px; }
+        table.pills td { border: 1px solid #d1d5db; padding: 3px 7px; font-size: 9px; white-space: nowrap; }
         .brand { margin: 0 0 14px; padding-bottom: 10px; border-bottom: 2px solid #0C0C0D; }
         .brand img { width: 22px; height: 22px; vertical-align: middle; }
         .brand-name { display: inline-block; margin-left: 8px; font-size: 12px; letter-spacing: 2px; color: #0C0C0D; vertical-align: middle; }
         .brand-aml { color: #6F6E69; }
-        .pill { display: inline-block; padding: 2px 7px; font-size: 9px; border: 1px solid #d1d5db; margin: 0 4px 6px 0; }
         .pill-success { background: #ecfdf5; }
         .pill-warning { background: #fffbeb; }
         .pill-danger { background: #fef2f2; }
@@ -31,7 +32,10 @@
         table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
         th, td { border: 1px solid #e5e7eb; padding: 5px 7px; text-align: left; vertical-align: top; }
         th { background: #F3F2EE; font-size: 10px; color: #555; }
-        .mono { font-family: DejaVu Sans, sans-serif; font-size: 9px; word-wrap: break-word; }
+        table.sheet { table-layout: fixed; }
+        table.sheet th, table.sheet td { word-wrap: break-word; }
+        .mono { font-family: DejaVu Sans, sans-serif; font-size: 8px; word-wrap: break-word; word-break: break-all; }
+        .num { word-break: break-all; }
         .row-success { background: #ecfdf5; }
         .row-warning { background: #fffbeb; }
         .row-danger { background: #fef2f2; }
@@ -67,12 +71,16 @@
         <span class="brand-name">GANIMED <span class="brand-aml">AML</span></span>
     </div>
     <h1>{{ $reportTitle }}</h1>
-    <div class="muted">{{ $check->type->label() }} · {{ $sources }} · {{ $generatedAt }} · #{{ $check->id }}</div>
-    <div>
-        @foreach ($pills as $pill)
-            <span class="pill pill-{{ $pill['tone'] }}">{{ $pill['label'] }}</span>
-        @endforeach
-    </div>
+    <p class="muted">{{ $check->type->label() }} · {{ $sources }} · {{ $generatedAt }} · #{{ $check->id }}</p>
+    @if (! empty($pills))
+        <table class="pills">
+            <tr>
+                @foreach ($pills as $pill)
+                    <td class="pill-{{ $pill['tone'] }}">{{ $pill['label'] }}</td>
+                @endforeach
+            </tr>
+        </table>
+    @endif
 
     @php
         $verdictTone = match ($check->verdict?->value) {
@@ -141,7 +149,11 @@
     @endforeach
 
     <h2>{{ __('aml.object_title') }}</h2>
-    <table>
+    <table class="sheet">
+        <colgroup>
+            <col style="width: 28%">
+            <col style="width: 72%">
+        </colgroup>
         <thead>
             <tr>
                 <th>{{ __('aml.field') }}</th>
@@ -188,7 +200,7 @@
     @if (empty($hotFlags))
         <p class="muted">{{ __('aml.flags_none') }}</p>
     @else
-        <table>
+        <table class="sheet">
             <thead>
                 <tr>
                     <th>{{ __('aml.api_field') }}</th>
@@ -291,7 +303,14 @@
 
         <h2>{{ __('aml.balances') }}</h2>
         <p class="muted">{{ __('aml.canonical_usdt_hint', ['contract' => $officialUsdt]) }}</p>
-        <table>
+        <table class="sheet">
+            <colgroup>
+                <col style="width: 16%">
+                <col style="width: 16%">
+                <col style="width: 12%">
+                <col style="width: 34%">
+                <col style="width: 22%">
+            </colgroup>
             <thead>
                 <tr>
                     <th>{{ __('aml.inflow_asset') }}</th>
@@ -299,14 +318,13 @@
                     <th>{{ __('aml.usd') }}</th>
                     <th>{{ __('aml.col_contract') }}</th>
                     <th>{{ __('aml.token_status') }}</th>
-                    <th>{{ __('aml.comment') }}</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($balanceRows as $row)
                     <tr class="{{ ($row['tone'] ?? '') !== '' && ($row['tone'] ?? '') !== 'neutral' ? 'row-'.$row['tone'] : '' }}">
-                        <td>{{ $row['symbol'] }} {{ $row['name'] ?? '' }}</td>
-                        <td>{{ $row['amount'] }}</td>
+                        <td>{{ $row['label'] ?? $row['symbol'] }}</td>
+                        <td class="num">{{ $row['amount'] }}</td>
                         <td>
                             @if (isset($row['usd']) && $row['usd'] !== null)
                                 ${{ number_format((float) $row['usd'], 2, '.', ' ') }}
@@ -322,7 +340,6 @@
                                 {{ __('aml.token_kind_'.($row['kind'] ?? 'noise')) }}
                             @endif
                         </td>
-                        <td>{{ $row['comment'] }}</td>
                     </tr>
                 @endforeach
             </tbody>
@@ -367,7 +384,13 @@
                 @endforeach
             </table>
         @endif
-        <table>
+        <table class="sheet">
+            <colgroup>
+                <col style="width: 34%">
+                <col style="width: 16%">
+                <col style="width: 18%">
+                <col style="width: 32%">
+            </colgroup>
             <thead>
                 <tr>
                     <th>{{ __('aml.inflow_from') }}</th>
@@ -381,7 +404,7 @@
                     <tr class="{{ ! empty($row['tone']) ? 'row-'.$row['tone'] : '' }}">
                         <td class="mono">{{ $row['from'] }}</td>
                         <td>{{ $row['symbol'] }}</td>
-                        <td>{{ $row['amount'] }}</td>
+                        <td class="num">{{ $row['amount'] }}</td>
                         <td>{{ $row['comment'] }}</td>
                     </tr>
                 @endforeach

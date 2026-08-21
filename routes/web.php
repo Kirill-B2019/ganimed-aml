@@ -44,6 +44,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/watch', [WatchItemController::class, 'index'])->name('watch.index');
     Route::post('/watch', [WatchItemController::class, 'store'])->name('watch.store');
+    Route::patch('/watch/{watch}', [WatchItemController::class, 'update'])->name('watch.update');
     Route::delete('/watch/{watch}', [WatchItemController::class, 'destroy'])->name('watch.destroy');
 
     Route::get('/activity', [ActivityLogController::class, 'index'])->name('activity.index');
