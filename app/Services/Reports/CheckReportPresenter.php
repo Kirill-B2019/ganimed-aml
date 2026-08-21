@@ -168,6 +168,8 @@ class CheckReportPresenter
             $pills[] = [
                 'label' => __('aml.pill_risk_grade', ['grade' => $riskGrade->label()]),
                 'tone' => $riskGrade->tone(),
+                'color' => $riskGrade->swatch(),
+                'fill' => $riskGrade->fill(),
             ];
         }
 

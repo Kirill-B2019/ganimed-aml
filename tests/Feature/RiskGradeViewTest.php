@@ -33,7 +33,7 @@ class RiskGradeViewTest extends TestCase
             'enrichment' => ['skipped' => true],
         ]);
 
-        $this->actingAs($user)
+        $html = $this->actingAs($user)
             ->get(route('checks.show', $check))
             ->assertOk()
             ->assertSee(__('aml.risk_grades.elevated'), false)
@@ -46,13 +46,17 @@ class RiskGradeViewTest extends TestCase
                 'grade' => __('aml.risk_grades.elevated'),
                 'range' => __('aml.risk_grade_ranges.elevated'),
                 'score' => '50',
-            ]), false);
+            ]), false)
+            ->getContent();
+        $this->assertStringContainsString('#d97706', $html);
+        $this->assertStringContainsString('#fffbeb', $html);
 
         $pdf = app(CheckPdfService::class)->html($check, 'file');
         $this->assertStringContainsString(__('aml.risk_grades.elevated'), $pdf);
         $this->assertStringContainsString(__('aml.risk_grade_legend'), $pdf);
         $this->assertStringContainsString(__('aml.risk_grade_ranges.low'), $pdf);
         $this->assertStringContainsString(__('aml.risk_grade_ranges.critical'), $pdf);
+        $this->assertStringContainsString('#d97706', $pdf);
         $this->assertSame(RiskGrade::Elevated, RiskGrade::fromScore((int) $check->risk_score));
     }
 

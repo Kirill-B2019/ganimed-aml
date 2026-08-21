@@ -13,7 +13,7 @@
                     'font-semibold' => $grade->value === $item['key'],
                 ])>
                     <span class="inline-block h-2.5 w-2.5 rounded-full" style="background-color: {{ $item['swatch'] }}"></span>
-                    {{ $item['label'] }}
+                    <span style="color: {{ $item['swatch'] }}">{{ $item['label'] }}</span>
                     <span class="text-ink-muted">{{ $item['range'] }}</span>
                 </li>
             @endforeach

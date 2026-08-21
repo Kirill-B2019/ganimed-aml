@@ -115,22 +115,25 @@
                         </div>
                         <div class="mt-3 flex flex-wrap gap-2">
                             @foreach ($pills as $pill)
-                                <x-report-pill :tone="$pill['tone']">{{ $pill['label'] }}</x-report-pill>
+                                <x-report-pill
+                                    :tone="$pill['tone']"
+                                    :style="empty($pill['color']) ? null : 'color: '.$pill['color'].'; background-color: '.$pill['fill'].'; box-shadow: inset 0 0 0 1px '.$pill['color'].'33;'"
+                                >{{ $pill['label'] }}</x-report-pill>
                             @endforeach
                         </div>
                     </div>
                     <div>
                         <div class="text-[11px] uppercase tracking-[0.08em] text-ink-muted">{{ __('aml.flag_score') }}</div>
-                        <div @class([
-                            'mt-1 text-2xl font-semibold tabular-nums tracking-tight',
-                            'text-emerald-800' => $scoreTone === 'success',
-                            'text-yellow-800' => $scoreTone === 'caution',
-                            'text-amber-800' => $scoreTone === 'warning',
-                            'text-orange-800' => $scoreTone === 'severe',
-                            'text-rose-800' => $scoreTone === 'danger',
-                        ])>{{ $check->risk_score ?? '—' }}</div>
+                        <div
+                            @class([
+                                'mt-1 text-2xl font-semibold tabular-nums tracking-tight',
+                                'text-amber-800' => ! $riskGrade && $scoreTone === 'warning',
+                                'text-emerald-800' => ! $riskGrade && $scoreTone === 'success',
+                            ])
+                            @style(['color: '.($riskGrade?->swatch() ?? '') => (bool) $riskGrade])
+                        >{{ $check->risk_score ?? '—' }}</div>
                         @if ($riskGrade)
-                            <p class="mt-1 text-sm font-medium text-ink">{{ $riskGrade->label() }}</p>
+                            <p class="mt-1 text-sm font-medium" style="color: {{ $riskGrade->swatch() }}">{{ $riskGrade->label() }}</p>
                         @endif
                         @if ($check->isCompleted() && ! empty($scoreBreakdown['formula']))
                             <p class="mt-1 text-xs text-ink-muted">{{ $scoreBreakdown['formula'] }}</p>
@@ -207,7 +210,11 @@
                     'lg:grid-cols-4' => ! $riskGrade,
                 ])>
                     @if ($riskGrade)
-                        <x-report-stat :label="__('aml.risk_grade')" :tone="$riskGrade->tone()">
+                        <x-report-stat
+                            :label="__('aml.risk_grade')"
+                            :color="$riskGrade->swatch()"
+                            :fill="$riskGrade->fill()"
+                        >
                             {{ $riskGrade->label() }}
                         </x-report-stat>
                     @endif

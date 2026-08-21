@@ -34,5 +34,7 @@ class RiskGradeTest extends TestCase
         $this->assertSame(['low', 'moderate', 'elevated', 'high', 'critical'], array_column($legend, 'key'));
         $this->assertSame('Low', $legend[0]['label']);
         $this->assertSame('1–34', $legend[1]['range']);
+        $this->assertSame('#ca8a04', $legend[1]['swatch']);
+        $this->assertSame('#fefce8', $legend[1]['fill']);
     }
 }

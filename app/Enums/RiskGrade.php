@@ -70,8 +70,19 @@ enum RiskGrade: string
         };
     }
 
+    public function fill(): string
+    {
+        return match ($this) {
+            self::Low => '#ecfdf5',
+            self::Moderate => '#fefce8',
+            self::Elevated => '#fffbeb',
+            self::High => '#fff7ed',
+            self::Critical => '#fef2f2',
+        };
+    }
+
     /**
-     * @return list<array{key: string, label: string, range: string, hint: string, tone: string, swatch: string}>
+     * @return list<array{key: string, label: string, range: string, hint: string, tone: string, swatch: string, fill: string}>
      */
     public static function legend(): array
     {
@@ -84,6 +95,7 @@ enum RiskGrade: string
                 'hint' => $grade->hint(),
                 'tone' => $grade->tone(),
                 'swatch' => $grade->swatch(),
+                'fill' => $grade->fill(),
             ];
         }
 

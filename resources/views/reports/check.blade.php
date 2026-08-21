@@ -86,7 +86,12 @@
         <table class="pills">
             <tr>
                 @foreach ($pills as $pill)
-                    <td class="pill-{{ $pill['tone'] }}">{{ $pill['label'] }}</td>
+                    <td
+                        class="pill-{{ $pill['tone'] }}"
+                        @if (! empty($pill['color']))
+                            style="background: {{ $pill['fill'] }}; color: {{ $pill['color'] }};"
+                        @endif
+                    >{{ $pill['label'] }}</td>
                 @endforeach
             </tr>
         </table>
@@ -111,8 +116,8 @@
                 <div class="v">{{ $check->verdict?->label() ?? '—' }}</div>
                 <div class="l">{{ __('aml.verdict') }}</div>
             </td>
-            <td class="stat-{{ $scoreTone }}">
-                <div class="v">
+            <td @if ($riskGrade) style="background: {{ $riskGrade->fill() }};" @else class="stat-{{ $scoreTone }}" @endif>
+                <div class="v" @if ($riskGrade) style="color: {{ $riskGrade->swatch() }};" @endif>
                     @if ($riskGrade)
                         {{ $riskGrade->label() }} · {{ $check->risk_score }}
                     @else
@@ -163,7 +168,7 @@
             <tr>
                 @foreach ($riskGradeLegend as $item)
                     <td style="background-color: {{ $item['swatch'] }}; width: 8px; padding: 0;">&nbsp;</td>
-                    <td @if ($riskGrade->value === $item['key']) style="font-weight: bold;" @endif>{{ $item['label'] }} {{ $item['range'] }}</td>
+                    <td @if ($riskGrade->value === $item['key']) style="font-weight: bold; color: {{ $item['swatch'] }};" @else style="color: {{ $item['swatch'] }};" @endif>{{ $item['label'] }} {{ $item['range'] }}</td>
                 @endforeach
             </tr>
         </table>
