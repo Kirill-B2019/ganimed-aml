@@ -376,6 +376,45 @@ class CheckScreeningTest extends TestCase
             ->assertSee('processing-overlay', false);
     }
 
+    public function test_admin_can_delete_a_check(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $operator = User::factory()->create();
+        $check = Check::factory()->create(['user_id' => $operator->id]);
+
+        $this->actingAs($admin)
+            ->get(route('checks.show', $check))
+            ->assertOk()
+            ->assertSee(__('aml.delete_check'), false);
+
+        $this->actingAs($admin)
+            ->delete(route('checks.destroy', $check))
+            ->assertRedirect(route('checks.index'));
+
+        $this->assertDatabaseMissing('checks', ['id' => $check->id]);
+        $this->assertDatabaseHas('activity_logs', [
+            'user_id' => $admin->id,
+            'action' => 'delete',
+        ]);
+    }
+
+    public function test_non_admin_cannot_delete_a_check(): void
+    {
+        $user = User::factory()->create();
+        $check = Check::factory()->create(['user_id' => $user->id]);
+
+        $this->actingAs($user)
+            ->get(route('checks.show', $check))
+            ->assertOk()
+            ->assertDontSee(__('aml.delete_check'), false);
+
+        $this->actingAs($user)
+            ->delete(route('checks.destroy', $check))
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('checks', ['id' => $check->id]);
+    }
+
     public function test_pdf_is_available_for_completed_check(): void
     {
         Carbon::setTestNow('2026-08-21 09:33:15');

@@ -84,12 +84,21 @@
                                 <td class="text-ink-muted">{{ $check->user?->name ?? '—' }}</td>
                                 <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at?->format('d.m.Y H:i') }}</td>
                                 <td>
-                                    @if ($check->isCompleted())
-                                        <form method="POST" action="{{ route('checks.rerun', $check) }}">
-                                            @csrf
-                                            <button type="submit" class="text-sm ui-link">{{ __('aml.rerun') }}</button>
-                                        </form>
-                                    @endif
+                                    <div class="flex flex-wrap items-center gap-3">
+                                        @if ($check->isCompleted())
+                                            <form method="POST" action="{{ route('checks.rerun', $check) }}">
+                                                @csrf
+                                                <button type="submit" class="text-sm ui-link">{{ __('aml.rerun') }}</button>
+                                            </form>
+                                        @endif
+                                        @if (auth()->user()->is_admin)
+                                            <form method="POST" action="{{ route('checks.destroy', $check) }}" onsubmit="return confirm(@js(__('aml.delete_check_confirm')))">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit" class="text-sm text-rose-800 hover:underline">{{ __('aml.delete_check') }}</button>
+                                            </form>
+                                        @endif
+                                    </div>
                                 </td>
                             </tr>
                         @empty

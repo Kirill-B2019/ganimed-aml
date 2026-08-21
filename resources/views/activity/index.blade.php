@@ -24,6 +24,8 @@
                                 <td class="font-mono">
                                     @if ($log->check)
                                         <a class="ui-link" href="{{ route('checks.show', $log->check) }}">#{{ $log->check_id }}</a>
+                                    @elseif (! empty($log->meta['subject']))
+                                        {{ $log->meta['subject'] }}
                                     @else
                                         —
                                     @endif

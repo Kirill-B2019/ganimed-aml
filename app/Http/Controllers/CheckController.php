@@ -155,6 +155,23 @@ class CheckController extends Controller
         return $pdf->download($check, $variant);
     }
 
+    public function destroy(Request $request, Check $check, ActivityLogger $logger): RedirectResponse
+    {
+        abort_unless((bool) $request->user()?->is_admin, 403);
+        $this->authorizeCheck($request, $check);
+
+        $logger->record($request->user(), 'delete', $check, [
+            'subject' => $check->subject,
+            'type' => $check->type->value,
+            'check_id' => $check->id,
+        ]);
+        $check->delete();
+
+        return redirect()
+            ->route('checks.index')
+            ->with('status', __('aml.check_deleted'));
+    }
+
     public function storeAddress(StoreAddressCheckRequest $request, ScreeningService $screening): RedirectResponse
     {
         $meta = ['case_id' => $request->integer('case_id') ?: null];

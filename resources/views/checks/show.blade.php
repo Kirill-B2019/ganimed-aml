@@ -22,28 +22,37 @@
                 <span class="hidden truncate font-mono text-ink sm:inline">{{ $check->subject }}</span>
                 <x-copy-button :text="$check->subject" class="hidden shrink-0 sm:inline" />
             </div>
-            @if ($check->isCompleted())
+            @if ($check->isCompleted() || auth()->user()->is_admin)
                 <div class="flex flex-wrap items-center gap-2">
-                    <x-verdict-badge :verdict="$check->verdict" />
-                    <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'file'])">{{ __('aml.pdf_file') }}</x-secondary-button>
-                    <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'full'])">{{ __('aml.pdf_full') }}</x-secondary-button>
-                    <form method="POST" action="{{ route('checks.rerun', $check) }}">
-                        @csrf
-                        <x-primary-button>{{ __('aml.rerun') }}</x-primary-button>
-                    </form>
-                    <form method="POST" action="{{ route('watch.store') }}" class="flex flex-wrap items-center gap-2">
-                        @csrf
-                        <input type="hidden" name="check_id" value="{{ $check->id }}">
-                        <select name="interval_days" class="ui-select w-20 text-sm" title="{{ __('aml.watch_interval') }}">
-                            @foreach ([1, 3, 7, 14, 30] as $n)
-                                <option value="{{ $n }}" @selected($n === 7)>{{ __('aml.watch_interval_n', ['n' => $n]) }}</option>
-                            @endforeach
-                        </select>
-                        <x-secondary-button type="submit">
-                            <span class="sm:hidden">{{ __('aml.watch_add_short') }}</span>
-                            <span class="hidden sm:inline">{{ __('aml.watch_add') }}</span>
-                        </x-secondary-button>
-                    </form>
+                    @if ($check->isCompleted())
+                        <x-verdict-badge :verdict="$check->verdict" />
+                        <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'file'])">{{ __('aml.pdf_file') }}</x-secondary-button>
+                        <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'full'])">{{ __('aml.pdf_full') }}</x-secondary-button>
+                        <form method="POST" action="{{ route('checks.rerun', $check) }}">
+                            @csrf
+                            <x-primary-button>{{ __('aml.rerun') }}</x-primary-button>
+                        </form>
+                        <form method="POST" action="{{ route('watch.store') }}" class="flex flex-wrap items-center gap-2">
+                            @csrf
+                            <input type="hidden" name="check_id" value="{{ $check->id }}">
+                            <select name="interval_days" class="ui-select w-20 text-sm" title="{{ __('aml.watch_interval') }}">
+                                @foreach ([1, 3, 7, 14, 30] as $n)
+                                    <option value="{{ $n }}" @selected($n === 7)>{{ __('aml.watch_interval_n', ['n' => $n]) }}</option>
+                                @endforeach
+                            </select>
+                            <x-secondary-button type="submit">
+                                <span class="sm:hidden">{{ __('aml.watch_add_short') }}</span>
+                                <span class="hidden sm:inline">{{ __('aml.watch_add') }}</span>
+                            </x-secondary-button>
+                        </form>
+                    @endif
+                    @if (auth()->user()->is_admin)
+                        <form method="POST" action="{{ route('checks.destroy', $check) }}" onsubmit="return confirm(@js(__('aml.delete_check_confirm')))">
+                            @csrf
+                            @method('DELETE')
+                            <x-danger-button>{{ __('aml.delete_check') }}</x-danger-button>
+                        </form>
+                    @endif
                 </div>
             @endif
         </div>

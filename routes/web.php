@@ -37,6 +37,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/checks/{check}/rerun', [CheckController::class, 'rerun'])->name('checks.rerun');
     Route::get('/checks/{check}/pdf', [CheckController::class, 'pdf'])->name('checks.pdf');
     Route::patch('/checks/{check}/verdict', [CheckController::class, 'updateVerdict'])->name('checks.verdict');
+    Route::delete('/checks/{check}', [CheckController::class, 'destroy'])->name('checks.destroy');
 
     Route::get('/cases', [ScreeningCaseController::class, 'index'])->name('cases.index');
     Route::post('/cases', [ScreeningCaseController::class, 'store'])->name('cases.store');
