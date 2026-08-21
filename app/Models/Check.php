@@ -129,7 +129,7 @@ class Check extends Model
         return match ($verdict) {
             CheckVerdict::Block => 2,
             CheckVerdict::Review => 1,
-            default => 0,
+            CheckVerdict::Clear, CheckVerdict::Manual, null => 0,
         };
     }
 }

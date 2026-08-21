@@ -196,6 +196,26 @@ return [
     |
     */
 
-    'attributes' => [],
+    'attributes' => [
+        'address' => 'wallet address',
+        'addresses' => 'address batch',
+        'chain_id' => 'chain',
+        'contract' => 'token contract',
+        'url' => 'URL',
+        'name' => 'name',
+        'email' => 'email',
+        'password' => 'password',
+        'password_confirmation' => 'password confirmation',
+        'current_password' => 'current password',
+        'verdict' => 'verdict',
+        'note' => 'note',
+        'webhook_url' => 'webhook URL',
+        'webhook_secret' => 'HMAC secret',
+        'subject' => 'address',
+        'interval_days' => 'interval',
+        'case_id' => 'case',
+        'tokens' => 'tokens',
+        'is_admin' => 'admin',
+    ],
 
 ];

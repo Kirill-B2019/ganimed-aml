@@ -20,7 +20,11 @@ class UpdateCheckVerdictRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'verdict' => ['required', Rule::in([CheckVerdict::Review->value, CheckVerdict::Block->value])],
+            'verdict' => ['required', Rule::in([
+                CheckVerdict::Manual->value,
+                CheckVerdict::Review->value,
+                CheckVerdict::Block->value,
+            ])],
             'note' => ['nullable', 'string', 'max:500'],
             'tokens' => ['nullable', 'array'],
             'tokens.*' => ['string', Rule::in(['lookalike', 'noise', 'ignore'])],

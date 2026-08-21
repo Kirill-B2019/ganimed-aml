@@ -96,7 +96,7 @@
                                     <form method="POST" action="{{ route('watch.destroy', $item) }}">
                                         @csrf
                                         @method('DELETE')
-                                        <button type="submit" class="text-sm text-rose-700">{{ __('aml.revoke') }}</button>
+                                        <button type="submit" class="text-sm text-rose-700">{{ __('aml.watch_remove') }}</button>
                                     </form>
                                 </td>
                             </tr>

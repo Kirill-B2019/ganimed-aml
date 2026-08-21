@@ -218,6 +218,7 @@
                             <div>
                                 <x-input-label for="verdict" :value="__('aml.verdict')" />
                                 <select id="verdict" name="verdict" class="ui-select mt-1 block w-full">
+                                    <option value="manual" @selected(old('verdict', $check->verdict?->value) === 'manual')>{{ __('aml.verdicts.manual') }}</option>
                                     <option value="review" @selected(old('verdict', $check->verdict?->value) === 'review')>{{ __('aml.verdicts.review') }}</option>
                                     <option value="block" @selected(old('verdict', $check->verdict?->value) === 'block')>{{ __('aml.verdicts.block') }}</option>
                                 </select>
@@ -551,6 +552,36 @@
                         </table>
                     </div>
                 </details>
+            @endif
+
+            @if (($activityLogs ?? null) && $activityLogs->isNotEmpty())
+                <x-report-section :title="__('aml.activity')">
+                    <div class="overflow-x-auto">
+                        <table class="ui-table">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('aml.created') }}</th>
+                                    <th>{{ __('aml.operator') }}</th>
+                                    <th>{{ __('aml.type') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($activityLogs as $log)
+                                    <tr>
+                                        <td class="text-ink-muted whitespace-nowrap">{{ $log->created_at->format('d.m.Y H:i') }}</td>
+                                        <td>{{ $log->user?->name ?? '—' }}</td>
+                                        <td>
+                                            {{ $log->label() }}
+                                            @if ($log->note())
+                                                <div class="text-xs text-ink-muted">{{ $log->note() }}</div>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </x-report-section>
             @endif
 
             @if ($check->raw_response)

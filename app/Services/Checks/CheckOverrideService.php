@@ -33,19 +33,28 @@ class CheckOverrideService
         $override['verdict_locked'] = true;
         $override['by'] = $user->id;
         $override['at'] = now()->toIso8601String();
-        $override['note'] = $note !== null && trim($note) !== '' ? trim($note) : ($override['note'] ?? null);
+        $from = $check->verdict?->value;
+        $note = $note !== null && trim($note) !== '' ? trim($note) : ($override['note'] ?? null);
+
+        $override['note'] = $note;
         $override['tokens'] = $this->sanitizeTokens($check, $tokens);
 
         $check->override = $override;
         $check->verdict = $new;
-        $check->risk_score = $new === CheckVerdict::Block
-            ? RiskScoringService::BLOCK_SCORE
-            : max($this->scoring->breakdown($check)['total'], RiskScoringService::ONCHAIN_FLOOR);
+        $check->risk_score = match ($new) {
+            CheckVerdict::Block => RiskScoringService::BLOCK_SCORE,
+            CheckVerdict::Manual => 0,
+            default => max($this->scoring->breakdown($check)['total'], RiskScoringService::ONCHAIN_FLOOR),
+        };
         $check->save();
 
-        app(\App\Services\Ops\ActivityLogger::class)->record($user, 'verdict', $check, [
+        $action = $new === CheckVerdict::Manual ? 'manual' : 'verdict';
+        $meta = array_filter([
+            'from' => $from,
             'verdict' => $new->value,
-        ]);
+            'note' => is_string($note) && $note !== '' ? $note : null,
+        ], fn ($value) => $value !== null && $value !== '');
+        app(\App\Services\Ops\ActivityLogger::class)->record($user, $action, $check, $meta);
         \App\Jobs\DispatchAmlWebhookJob::forCheck('check.verdict.changed', $check->loadMissing('user'));
 
         return $check->refresh();

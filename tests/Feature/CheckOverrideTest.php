@@ -103,6 +103,79 @@ class CheckOverrideTest extends TestCase
         $this->assertGreaterThanOrEqual(20, $check->risk_score);
     }
 
+    public function test_review_can_be_changed_to_manual(): void
+    {
+        $user = User::factory()->create();
+        $check = $this->reviewCheck($user);
+
+        $this->actingAs($user)
+            ->patch(route('checks.verdict', $check), [
+                'verdict' => 'manual',
+                'note' => 'false positive',
+            ])
+            ->assertRedirect(route('checks.show', $check));
+
+        $check->refresh();
+        $this->assertSame(CheckVerdict::Manual, $check->verdict);
+        $this->assertSame(0, $check->risk_score);
+        $this->assertTrue($check->verdictIsLocked());
+        $this->assertTrue($check->verdict->isClearLike());
+        $this->assertSame(Check::verdictRank(CheckVerdict::Clear), Check::verdictRank($check->verdict));
+        $this->assertTrue($check->canOverrideVerdict());
+        $this->assertSame('false positive', $check->override['note']);
+        $this->assertSame(0, app(\App\Services\Risk\RiskScoringService::class)->breakdown($check)['total']);
+        $this->assertDatabaseHas('activity_logs', [
+            'check_id' => $check->id,
+            'user_id' => $user->id,
+            'action' => 'manual',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('checks.show', $check))
+            ->assertOk()
+            ->assertSee(__('aml.activity_manual'), false)
+            ->assertSee('false positive', false)
+            ->assertSee($user->name, false);
+
+        $this->actingAs($user)
+            ->get(route('activity.index'))
+            ->assertOk()
+            ->assertSee(__('aml.activity_manual'), false)
+            ->assertSee('false positive', false);
+    }
+
+    public function test_manual_check_is_counted_as_clear_and_not_queued(): void
+    {
+        $user = User::factory()->create();
+        Check::factory()->create([
+            'user_id' => $user->id,
+            'subject' => 'Tmanualwallet000000000000000000000001',
+            'status' => CheckStatus::Completed,
+            'verdict' => CheckVerdict::Manual,
+            'risk_score' => 0,
+        ]);
+        Check::factory()->create([
+            'user_id' => $user->id,
+            'subject' => 'Treviewwallet000000000000000000000001',
+            'status' => CheckStatus::Completed,
+            'verdict' => CheckVerdict::Review,
+            'risk_score' => 35,
+        ]);
+
+        $html = $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertOk()
+            ->getContent();
+
+        $queueStart = strpos($html, __('aml.queue_review'));
+        $latestStart = strpos($html, __('aml.latest_checks'));
+        $this->assertNotFalse($queueStart);
+        $this->assertNotFalse($latestStart);
+        $queueHtml = substr($html, $queueStart, $latestStart - $queueStart);
+        $this->assertStringContainsString('Treviewwallet', $queueHtml);
+        $this->assertStringNotContainsString('Tmanualwallet', $queueHtml);
+    }
+
     public function test_locked_verdict_is_not_promoted_again_on_fill(): void
     {
         $user = User::factory()->create();
@@ -143,6 +216,7 @@ class CheckOverrideTest extends TestCase
             ->assertSee('Как считается балл', false)
             ->assertSee('20 + 15', false)
             ->assertSee('Статус файла и токенов', false)
+            ->assertSee('value="manual"', false)
             ->assertDontSee('value="clear"', false);
     }
 

@@ -110,7 +110,7 @@ class WatchItemController extends Controller
         abort_unless($watch->user_id === $request->user()->id || $request->user()->is_admin, 403);
         $watch->delete();
 
-        return back()->with('status', __('aml.watchlist'));
+        return back()->with('status', __('aml.watch_removed'));
     }
 
     private function ownedCaseId(int $userId, mixed $caseId): ?int

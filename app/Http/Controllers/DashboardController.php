@@ -26,7 +26,7 @@ class DashboardController extends Controller
 
         $stats = [
             'total' => (clone $query)->count(),
-            'clear' => (clone $query)->where('verdict', CheckVerdict::Clear)->count(),
+            'clear' => (clone $query)->whereIn('verdict', CheckVerdict::clearLike())->count(),
             'review' => (clone $query)->where('verdict', CheckVerdict::Review)->count(),
             'block' => (clone $query)->where('verdict', CheckVerdict::Block)->count(),
             'pending' => (clone $query)->where('status', CheckStatus::Pending)->count(),

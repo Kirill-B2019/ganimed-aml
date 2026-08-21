@@ -84,10 +84,17 @@ class CheckController extends Controller
     {
         $this->authorizeCheck($request, $check);
         $check->load('user', 'previousCheck');
+        $activityLogs = $check->activityLogs()
+            ->with('user')
+            ->where('action', '!=', 'view')
+            ->latest()
+            ->limit(30)
+            ->get();
         $logger->record($request->user(), 'view', $check);
 
         return view('checks.show', $presenter->data($check) + [
             'needsOnchainFetch' => $enrichment->needsFetch($check),
+            'activityLogs' => $activityLogs,
         ]);
     }
 

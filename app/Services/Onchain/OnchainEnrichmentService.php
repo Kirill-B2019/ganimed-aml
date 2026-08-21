@@ -92,7 +92,7 @@ class OnchainEnrichmentService
         if ($check->verdictIsLocked()) {
             return $check;
         }
-        if ($check->verdict === CheckVerdict::Block || $check->verdict === CheckVerdict::Review) {
+        if ($check->verdict !== CheckVerdict::Clear) {
             return $check;
         }
 

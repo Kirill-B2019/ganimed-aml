@@ -6,6 +6,7 @@ namespace App\Services\Reports;
 use App\Enums\CheckType;
 use App\Enums\CheckVerdict;
 use App\Models\Check;
+use App\Models\User;
 use App\Support\TronAddress;
 use App\Services\Onchain\AssetNarrativeService;
 use App\Services\Onchain\TokenCompositionChart;
@@ -148,7 +149,12 @@ class CheckReportPresenter
         }
 
         if ($check->verdictIsLocked()) {
-            $pills[] = ['label' => __('aml.pill_analyst'), 'tone' => 'warning'];
+            $pills[] = [
+                'label' => $check->verdict === CheckVerdict::Manual
+                    ? __('aml.verdicts.manual')
+                    : __('aml.pill_analyst'),
+                'tone' => $check->verdict?->isClearLike() ? 'success' : 'warning',
+            ];
         }
 
         $raw = is_array($check->raw_response) ? $check->raw_response : [];
@@ -179,6 +185,9 @@ class CheckReportPresenter
         }
 
         $raw = is_array($check->raw_response) ? $check->raw_response : [];
+        if ($check->verdict === CheckVerdict::Manual) {
+            return __('aml.reading_manual');
+        }
         if ($check->verdict === CheckVerdict::Block) {
             return __('aml.reading_block');
         }
@@ -588,6 +597,17 @@ class CheckReportPresenter
             ? ($onchain['source'] ?? 'GoPlus').' · '.$this->sourcesLabel($check)
             : $this->sourcesLabel($check)];
 
+        if ($check->verdictIsLocked()) {
+            $payload = $check->overridePayload();
+            $analyst = isset($payload['by']) ? User::query()->find($payload['by']) : null;
+            $at = isset($payload['at']) ? \Illuminate\Support\Carbon::parse((string) $payload['at'])->format('d.m.Y H:i') : null;
+            $note = is_string($payload['note'] ?? null) && $payload['note'] !== '' ? $payload['note'] : null;
+            $rows[] = ['label' => __('aml.verdict'), 'value' => $check->verdict?->label() ?? '—'];
+            $rows[] = ['label' => __('aml.override_by'), 'value' => $analyst?->name ?? '—'];
+            $rows[] = ['label' => __('aml.override_at'), 'value' => $at ?? '—'];
+            $rows[] = ['label' => __('aml.override_note'), 'value' => $note ?? __('aml.override_no_note')];
+        }
+
         return $rows;
     }
 
@@ -710,9 +730,13 @@ class CheckReportPresenter
             $note = is_string($payload['note'] ?? null) && $payload['note'] !== ''
                 ? $payload['note']
                 : null;
+            $analyst = isset($payload['by']) ? User::query()->find($payload['by']) : null;
+            $at = isset($payload['at']) ? \Illuminate\Support\Carbon::parse((string) $payload['at'])->format('d.m.Y H:i') : null;
             $parts[] = __('aml.conclusion_analyst', [
                 'verdict' => $check->verdict?->label() ?? '—',
                 'note' => $note ?? __('aml.override_no_note'),
+                'name' => $analyst?->name ?? '—',
+                'at' => $at ?? '—',
             ]);
         }
 

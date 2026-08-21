@@ -423,7 +423,24 @@ class RiskScoringService
      */
     private function withAnalystOverride(Check $check, array $computed): array
     {
-        if (! $check->verdictIsLocked() || $check->verdict !== CheckVerdict::Block || $computed['total'] >= self::BLOCK_SCORE) {
+        if (! $check->verdictIsLocked()) {
+            return $computed;
+        }
+
+        if ($check->verdict === CheckVerdict::Manual) {
+            $computed['lines'][] = [
+                'label' => __('aml.score_analyst_manual_label'),
+                'points' => -$computed['total'],
+                'rule' => __('aml.score_rule_analyst_manual'),
+                'severity' => 'clear',
+            ];
+            $computed['total'] = 0;
+            $computed['formula'] = __('aml.score_formula_manual');
+
+            return $computed;
+        }
+
+        if ($check->verdict !== CheckVerdict::Block || $computed['total'] >= self::BLOCK_SCORE) {
             return $computed;
         }
 
