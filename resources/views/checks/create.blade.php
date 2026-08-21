@@ -52,8 +52,8 @@
                             <p class="mt-1 text-xs text-ink-muted">{{ __('aml.batch_hint') }}</p>
                         </div>
                         <div>
-                            <label class="inline-flex items-center gap-2 text-sm">
-                                <input type="checkbox" name="deep" value="1" class="rounded border-ink-line" x-model="deep">
+                            <label class="flex items-start gap-2 text-sm">
+                                <input type="checkbox" name="deep" value="1" class="mt-0.5 rounded border-ink-line" x-model="deep">
                                 <span>{{ __('aml.deep_window') }}</span>
                             </label>
                             <p class="mt-1 text-xs text-ink-muted">{{ __('aml.deep_window_hint') }}</p>

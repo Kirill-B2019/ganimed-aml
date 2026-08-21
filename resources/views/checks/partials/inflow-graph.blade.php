@@ -7,8 +7,10 @@
     <p class="text-sm text-ink-muted">{{ __('aml.graph_pending') }}</p>
 @endif
 @if (! empty($walletGraphSvg))
-    <div class="mt-3 max-w-3xl mx-auto">
-        {!! $walletGraphSvg !!}
+    <div class="mt-3 overflow-x-auto">
+        <div class="min-w-[40rem] max-w-3xl mx-auto sm:min-w-0">
+            {!! $walletGraphSvg !!}
+        </div>
     </div>
     @if ($legend !== [])
         <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-ink">
@@ -22,7 +24,28 @@
     @endif
     @if ($peers !== [])
         <h3 class="mt-5 text-sm font-semibold text-ink">{{ __('aml.graph_peers') }}</h3>
-        <div class="mt-2 overflow-x-auto">
+        <div class="mt-2 sm:hidden divide-y divide-ink-line">
+            @foreach ($peers as $peer)
+                <div class="py-2.5">
+                    <div class="flex items-start gap-2">
+                        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold {{ ($peer['tone'] ?? '') === 'unknown' ? 'text-ink' : 'text-white' }}" style="background-color: {{ $peer['color'] }}">{{ $peer['n'] }}</span>
+                        <div class="min-w-0">
+                            <x-tronscan-link :address="$peer['id']" :short="true" />
+                            <p class="mt-1 text-xs">
+                                @foreach ($peer['status'] as $status)
+                                    <span class="mr-1 {{ $status === 'spam' ? 'text-rose-700' : ($status === 'dust' ? 'text-amber-700' : 'text-ink-muted') }}">{{ __('aml.graph_kind_'.$status) }}</span>
+                                @endforeach
+                            </p>
+                            <p class="mt-0.5 text-xs text-ink-muted">
+                                {{ $peer['assets'] !== '' ? $peer['assets'] : '—' }}
+                                · {{ $peer['in_count'] }} / {{ $peer['out_count'] }}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+        <div class="mt-2 hidden overflow-x-auto sm:block">
             <table class="min-w-full text-sm">
                 <thead>
                     <tr class="text-left text-xs text-ink-muted">
@@ -35,7 +58,7 @@
                 <tbody>
                     @foreach ($peers as $peer)
                         <tr class="border-t border-ink-line align-top">
-                            <td class="py-2 pr-3 whitespace-nowrap">
+                            <td class="py-2 pr-3">
                                 <span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold align-middle {{ ($peer['tone'] ?? '') === 'unknown' ? 'text-ink' : 'text-white' }}" style="background-color: {{ $peer['color'] }}">{{ $peer['n'] }}</span>
                                 <x-tronscan-link :address="$peer['id']" />
                             </td>

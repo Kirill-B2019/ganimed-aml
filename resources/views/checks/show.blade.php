@@ -23,16 +23,16 @@
                 <x-copy-button :text="$check->subject" class="hidden shrink-0 sm:inline" />
             </div>
             @if ($check->isCompleted() || auth()->user()->is_admin)
-                <div class="flex flex-wrap items-center gap-2">
+                <div class="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
                     @if ($check->isCompleted())
                         <x-verdict-badge :verdict="$check->verdict" />
                         <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'file'])">{{ __('aml.pdf_file') }}</x-secondary-button>
                         <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'full'])">{{ __('aml.pdf_full') }}</x-secondary-button>
-                        <form method="POST" action="{{ route('checks.rerun', $check) }}">
+                        <form method="POST" action="{{ route('checks.rerun', $check) }}" class="shrink-0">
                             @csrf
                             <x-primary-button>{{ __('aml.rerun') }}</x-primary-button>
                         </form>
-                        <form method="POST" action="{{ route('watch.store') }}" class="flex flex-wrap items-center gap-2">
+                        <form method="POST" action="{{ route('watch.store') }}" class="flex shrink-0 items-center gap-2">
                             @csrf
                             <input type="hidden" name="check_id" value="{{ $check->id }}">
                             <select name="interval_days" class="ui-select w-20 text-sm" title="{{ __('aml.watch_interval') }}">
@@ -47,7 +47,7 @@
                         </form>
                     @endif
                     @if (auth()->user()->is_admin)
-                        <form method="POST" action="{{ route('checks.destroy', $check) }}" onsubmit="return confirm(@js(__('aml.delete_check_confirm')))">
+                        <form method="POST" action="{{ route('checks.destroy', $check) }}" class="shrink-0" onsubmit="return confirm(@js(__('aml.delete_check_confirm')))">
                             @csrf
                             @method('DELETE')
                             <x-danger-button>{{ __('aml.delete_check') }}</x-danger-button>
@@ -450,45 +450,7 @@
                     @if (empty($inflowRows))
                         <p class="text-sm text-ink-muted">{{ __('aml.no_inflows') }}</p>
                     @else
-                        <div class="mt-4 overflow-x-auto">
-                            <table class="min-w-full text-sm">
-                                <thead>
-                                    <tr class="text-left text-xs text-ink-muted">
-                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.inflow_from') }}</th>
-                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.inflow_asset') }}</th>
-                                        <th class="pb-2 pr-3 font-medium text-right">{{ __('aml.inflow_amount') }}</th>
-                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.inflow_count') }}</th>
-                                        <th class="pb-2 font-medium">{{ __('aml.comment') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($inflowRows as $row)
-                                        @php
-                                            $rowBg = match ($row['tone'] ?? '') {
-                                                'success' => 'bg-emerald-50',
-                                                'warning' => 'bg-amber-50',
-                                                'danger' => 'bg-rose-50',
-                                                default => '',
-                                            };
-                                        @endphp
-                                        <tr class="border-t border-ink-line align-top {{ $rowBg }}">
-                                            <td class="py-2 pr-3">
-                                                <x-tronscan-link :address="$row['from'] ?? ''" />
-                                            </td>
-                                            <td class="py-2 pr-3">
-                                                <div>{{ $row['symbol'] }}</div>
-                                                @if (! empty($row['contract']))
-                                                    <x-tronscan-link :address="$row['contract']" :short="true" class="text-ink-muted" />
-                                                @endif
-                                            </td>
-                                            <td class="py-2 pr-3 font-mono text-right">{{ $row['amount'] }}</td>
-                                            <td class="py-2 pr-3">{{ $row['tx_count'] ?? '' }}</td>
-                                            <td class="py-2 text-ink-muted">{{ $row['comment'] }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
+                        @include('checks.partials.flow-table', ['rows' => $inflowRows, 'peerKey' => 'from'])
                     @endif
                 </x-report-section>
 
@@ -496,45 +458,7 @@
                     @if (empty($outflowRows))
                         <p class="text-sm text-ink-muted">{{ __('aml.no_outflows') }}</p>
                     @else
-                        <div class="mt-4 overflow-x-auto">
-                            <table class="min-w-full text-sm">
-                                <thead>
-                                    <tr class="text-left text-xs text-ink-muted">
-                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.outflow_to') }}</th>
-                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.inflow_asset') }}</th>
-                                        <th class="pb-2 pr-3 font-medium text-right">{{ __('aml.inflow_amount') }}</th>
-                                        <th class="pb-2 pr-3 font-medium">{{ __('aml.inflow_count') }}</th>
-                                        <th class="pb-2 font-medium">{{ __('aml.comment') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($outflowRows as $row)
-                                        @php
-                                            $rowBg = match ($row['tone'] ?? '') {
-                                                'success' => 'bg-emerald-50',
-                                                'warning' => 'bg-amber-50',
-                                                'danger' => 'bg-rose-50',
-                                                default => '',
-                                            };
-                                        @endphp
-                                        <tr class="border-t border-ink-line align-top {{ $rowBg }}">
-                                            <td class="py-2 pr-3">
-                                                <x-tronscan-link :address="$row['to'] ?? ''" />
-                                            </td>
-                                            <td class="py-2 pr-3">
-                                                <div>{{ $row['symbol'] }}</div>
-                                                @if (! empty($row['contract']))
-                                                    <x-tronscan-link :address="$row['contract']" :short="true" class="text-ink-muted" />
-                                                @endif
-                                            </td>
-                                            <td class="py-2 pr-3 font-mono text-right">{{ $row['amount'] }}</td>
-                                            <td class="py-2 pr-3">{{ $row['tx_count'] ?? '' }}</td>
-                                            <td class="py-2 text-ink-muted">{{ $row['comment'] }}</td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
+                        @include('checks.partials.flow-table', ['rows' => $outflowRows, 'peerKey' => 'to'])
                     @endif
                 </x-report-section>
             @elseif ($isWalletReport && $check->isCompleted() && ! empty($onchain['skipped']))
