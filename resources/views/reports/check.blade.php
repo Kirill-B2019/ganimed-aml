@@ -387,6 +387,7 @@
                     @foreach ($walletGraphPeers as $peer)
                         <tr>
                             <td class="mono">
+                                {{ $peer['n'] ?? '' }}
                                 @if (! empty($peer['explorer']))
                                     <a href="{{ $peer['explorer'] }}">{{ $peer['id'] }}</a>
                                 @else
@@ -459,7 +460,19 @@
                                 {{ $row['from'] }}
                             @endif
                         </td>
-                        <td>{{ $row['symbol'] }}</td>
+                        <td>
+                            {{ $row['symbol'] }}
+                            @if (! empty($row['contract']))
+                                @php($contractHref = \App\Support\TronAddress::explorerUrl((string) $row['contract']))
+                                <div class="mono">
+                                    @if ($contractHref)
+                                        <a href="{{ $contractHref }}">{{ \App\Support\TronAddress::short((string) $row['contract']) }}</a>
+                                    @else
+                                        {{ \App\Support\TronAddress::short((string) $row['contract']) }}
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
                         <td class="num">{{ $row['amount'] }}</td>
                         <td>{{ $row['comment'] }}</td>
                     </tr>
@@ -498,7 +511,19 @@
                                 {{ $row['to'] }}
                             @endif
                         </td>
-                        <td>{{ $row['symbol'] }}</td>
+                        <td>
+                            {{ $row['symbol'] }}
+                            @if (! empty($row['contract']))
+                                @php($contractHref = \App\Support\TronAddress::explorerUrl((string) $row['contract']))
+                                <div class="mono">
+                                    @if ($contractHref)
+                                        <a href="{{ $contractHref }}">{{ \App\Support\TronAddress::short((string) $row['contract']) }}</a>
+                                    @else
+                                        {{ \App\Support\TronAddress::short((string) $row['contract']) }}
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
                         <td class="num">{{ $row['amount'] }}</td>
                         <td>{{ $row['comment'] }}</td>
                     </tr>

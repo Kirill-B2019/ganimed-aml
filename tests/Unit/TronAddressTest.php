@@ -34,4 +34,13 @@ class TronAddressTest extends TestCase
             TronAddress::fromHex('4140497af024c1d8ca00848de32d1d3dc4ef652598'),
         );
     }
+
+    public function test_shortens_address_for_labels(): void
+    {
+        $this->assertSame(
+            'TFq8Gq…NaYk',
+            TronAddress::short('TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk'),
+        );
+        $this->assertSame('short', TronAddress::short('short'));
+    }
 }

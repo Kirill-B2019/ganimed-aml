@@ -24,12 +24,17 @@ class WalletGraphChart
     /**
      * @param  array<string, mixed>  $graph
      */
-    public function svg(array $graph, int $width = 720, int $height = 520): string
+    public function svg(array $graph, int $width = 880, int $height = 640): string
     {
         $nodes = is_array($graph['nodes'] ?? null) ? $graph['nodes'] : [];
         $edges = is_array($graph['edges'] ?? null) ? $graph['edges'] : [];
         if ($nodes === []) {
             return '';
+        }
+
+        $indexById = [];
+        foreach ($this->peers($graph) as $peer) {
+            $indexById[(string) $peer['id']] = (int) $peer['n'];
         }
 
         $cx = $width / 2;
@@ -55,10 +60,10 @@ class WalletGraphChart
 
         $placed = [];
         foreach ($hop1 as $i => $node) {
-            $placed[(string) $node['id']] = $this->ringPoint($cx, $cy, 180, 135, $i, max(count($hop1), 1), -90);
+            $placed[(string) $node['id']] = $this->ringPoint($cx, $cy, 200, 150, $i, max(count($hop1), 1), -90);
         }
         foreach ($hop2 as $i => $node) {
-            $placed[(string) $node['id']] = $this->ringPoint($cx, $cy, 236, 180, $i, max(count($hop2), 1), -75);
+            $placed[(string) $node['id']] = $this->ringPoint($cx, $cy, 250, 195, $i, max(count($hop2), 1), -75);
         }
         if (is_array($subject) && ! empty($subject['id'])) {
             $placed[(string) $subject['id']] = [$cx, $cy];
@@ -95,10 +100,17 @@ class WalletGraphChart
 
         foreach (array_merge($hop2, $hop1) as $node) {
             $id = (string) $node['id'];
-            $markup .= $this->nodeMarkup($node, $placed[$id] ?? [$cx, $cy], false);
+            $markup .= $this->nodeMarkup(
+                $node,
+                $placed[$id] ?? [$cx, $cy],
+                $cx,
+                $cy,
+                false,
+                $indexById[$id] ?? null,
+            );
         }
         if (is_array($subject)) {
-            $markup .= $this->nodeMarkup($subject, [$cx, $cy], true);
+            $markup .= $this->nodeMarkup($subject, [$cx, $cy], $cx, $cy, true, null);
         }
 
         return '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 '.$width.' '.$height.'" class="w-full h-auto" role="img">'
@@ -143,7 +155,7 @@ class WalletGraphChart
             $tone = $this->toneKey($kind, $flags);
             $rows[] = [
                 'id' => $id,
-                'short' => $this->shortId($id),
+                'short' => TronAddress::short($id),
                 'explorer' => TronAddress::explorerUrl($id),
                 'color' => $this->fillColor($kind, $flags, false),
                 'tone' => $tone,
@@ -161,6 +173,11 @@ class WalletGraphChart
             return ($rank[$a['tone']] ?? 9) <=> ($rank[$b['tone']] ?? 9)
                 ?: ($b['in_count'] + $b['out_count']) <=> ($a['in_count'] + $a['out_count']);
         });
+
+        foreach ($rows as $i => &$row) {
+            $row['n'] = $i + 1;
+        }
+        unset($row);
 
         return $rows;
     }
@@ -196,14 +213,15 @@ class WalletGraphChart
      * @param  array<string, mixed>  $node
      * @param  array{0: float, 1: float}  $pos
      */
-    private function nodeMarkup(array $node, array $pos, bool $center): string
+    private function nodeMarkup(array $node, array $pos, float $cx, float $cy, bool $center, ?int $n): string
     {
         $id = (string) ($node['id'] ?? '');
         $kind = (string) ($node['kind'] ?? 'unknown');
         $flags = is_array($node['flags'] ?? null) ? $node['flags'] : [];
         $fill = $this->fillColor($kind, $flags, $center);
-        $r = $center ? 20 : (((int) ($node['hop'] ?? 1)) >= 2 ? 10 : 14);
+        $r = $center ? 22 : (((int) ($node['hop'] ?? 1)) >= 2 ? 11 : 15);
         $url = TronAddress::explorerUrl($id);
+        $short = htmlspecialchars(TronAddress::short($id), ENT_QUOTES | ENT_XML1, 'UTF-8');
         $inner = sprintf(
             '<title>%s</title><circle cx="%s" cy="%s" r="%s" fill="%s" stroke="#fff" stroke-width="2"/>',
             htmlspecialchars($id, ENT_QUOTES | ENT_XML1, 'UTF-8'),
@@ -212,6 +230,35 @@ class WalletGraphChart
             $r,
             $fill
         );
+
+        if ($center) {
+            $inner .= sprintf(
+                '<text x="%s" y="%s" text-anchor="middle" font-size="11" font-weight="600" fill="#111827" stroke="#fff" stroke-width="3" paint-order="stroke">%s</text>',
+                $cx,
+                $cy + $r + 22,
+                $short
+            );
+        } else {
+            if ($n !== null) {
+                $digitFill = $fill === self::COLORS['unknown'] ? '#111827' : '#ffffff';
+                $inner .= sprintf(
+                    '<text x="%s" y="%s" text-anchor="middle" font-size="%s" font-weight="700" fill="%s" pointer-events="none">%s</text>',
+                    $pos[0],
+                    $pos[1] + 4,
+                    $n > 9 ? '9' : '11',
+                    $digitFill,
+                    $n
+                );
+            }
+            [$lx, $ly, $anchor] = $this->outerLabel($pos[0], $pos[1], $cx, $cy, $r + 16);
+            $inner .= sprintf(
+                '<text x="%s" y="%s" text-anchor="%s" font-size="10" fill="#111827" stroke="#fff" stroke-width="3" paint-order="stroke">%s</text>',
+                $lx,
+                $ly,
+                $anchor,
+                $short
+            );
+        }
 
         if ($url === null) {
             return $inner;
@@ -301,6 +348,24 @@ class WalletGraphChart
     }
 
     /**
+     * @return array{0: float, 1: float, 2: string}
+     */
+    private function outerLabel(float $x, float $y, float $cx, float $cy, float $pad): array
+    {
+        $dx = $x - $cx;
+        $dy = $y - $cy;
+        $len = hypot($dx, $dy);
+        if ($len < 1) {
+            return [$x, $y + $pad, 'middle'];
+        }
+        $lx = $x + ($dx / $len) * $pad;
+        $ly = $y + ($dy / $len) * $pad + 4;
+        $anchor = $dx > 18 ? 'start' : ($dx < -18 ? 'end' : 'middle');
+
+        return [$lx, $ly, $anchor];
+    }
+
+    /**
      * @return array{0: float, 1: float}
      */
     private function ringPoint(float $cx, float $cy, float $rx, float $ry, int $i, int $n, float $startDeg): array
@@ -308,14 +373,5 @@ class WalletGraphChart
         $angle = deg2rad($startDeg + ($i * 360 / $n));
 
         return [$cx + $rx * cos($angle), $cy + $ry * sin($angle)];
-    }
-
-    private function shortId(string $id): string
-    {
-        if (strlen($id) < 12) {
-            return $id;
-        }
-
-        return substr($id, 0, 6).'…'.substr($id, -4);
     }
 }

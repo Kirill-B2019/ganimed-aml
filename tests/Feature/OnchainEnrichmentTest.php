@@ -10,6 +10,7 @@ use App\Models\Check;
 use App\Models\User;
 use App\Services\Onchain\OnchainEnrichmentService;
 use App\Services\Onchain\WalletGraphChart;
+use App\Support\TronAddress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -153,6 +154,7 @@ class OnchainEnrichmentTest extends TestCase
             ->assertSee('$109.39', false)
             ->assertSee('https://tronscan.org/#/address/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk', false)
             ->assertSee('https://tronscan.org/#/address/TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ', false)
+            ->assertSee('https://tronscan.org/#/address/TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', false)
             ->assertSee('target="_blank"', false)
             ->assertSee('Связи поступлений', false)
             ->assertDontSee('Файл: на проверку', false);
@@ -554,11 +556,13 @@ class OnchainEnrichmentTest extends TestCase
         $this->assertStringContainsString('#be123c', $svg);
         $this->assertStringContainsString('#d97706', $svg);
         $this->assertStringNotContainsString('USDT×', $svg);
-        $this->assertStringNotContainsString('…', $svg);
+        $this->assertStringContainsString(TronAddress::short((string) $spam['id']), $svg);
+        $this->assertStringContainsString(TronAddress::short((string) $dustNode['id']), $svg);
 
         $peers = app(WalletGraphChart::class)->peers($result['graph']);
         $this->assertTrue(collect($peers)->contains(fn ($row) => in_array('spam', $row['status'] ?? [], true)));
         $this->assertTrue(collect($peers)->contains(fn ($row) => in_array('dust', $row['status'] ?? [], true)));
+        $this->assertSame(1, $peers[0]['n'] ?? null);
 
         $html = view('checks.partials.inflow-graph', [
             'walletGraphSvg' => $svg,
@@ -628,6 +632,6 @@ class OnchainEnrichmentTest extends TestCase
 
         $svg = app(WalletGraphChart::class)->svg($result['graph']);
         $this->assertStringContainsString('#d97706', $svg);
-        $this->assertStringNotContainsString('…', $svg);
+        $this->assertStringContainsString(TronAddress::short((string) $dustNode['id']), $svg);
     }
 }

@@ -35,8 +35,8 @@
                 <tbody>
                     @foreach ($peers as $peer)
                         <tr class="border-t border-ink-line align-top">
-                            <td class="py-2 pr-3">
-                                <span class="mr-2 inline-block h-2.5 w-2.5 rounded-full align-middle" style="background-color: {{ $peer['color'] }}"></span>
+                            <td class="py-2 pr-3 whitespace-nowrap">
+                                <span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-semibold align-middle {{ ($peer['tone'] ?? '') === 'unknown' ? 'text-ink' : 'text-white' }}" style="background-color: {{ $peer['color'] }}">{{ $peer['n'] }}</span>
                                 <x-tronscan-link :address="$peer['id']" />
                             </td>
                             <td class="py-2 pr-3">

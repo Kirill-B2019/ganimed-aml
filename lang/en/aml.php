@@ -188,7 +188,7 @@ return [
     'inflow_bar_stable' => 'Canonical USDT',
     'inflow_bar_spam' => 'Spam / lookalikes',
     'wallet_graph' => 'Wallet graph',
-    'wallet_graph_hint' => 'Ego-graph from the TronGrid window: the checked address is the centre, counterparties are the ring. Dust and spam are coloured; EOA/contract type appears after Scan. No GoPlus on neighbours.',
+    'wallet_graph_hint' => 'Ego-graph from the TronGrid window: the checked address is the centre, counterparties are the ring. The number on a circle matches the table. Dust and spam are coloured; EOA/contract type appears after Scan. No GoPlus on neighbours.',
     'graph_pending' => 'The second hop is still being built in the queue. This card is already available.',
     'graph_truncated' => 'The graph was capped by the node limit or a TronGrid pause (429).',
     'graph_empty' => 'No counterparties in the transaction window to draw a graph.',

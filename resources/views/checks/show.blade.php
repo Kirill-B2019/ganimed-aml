@@ -475,7 +475,12 @@
                                             <td class="py-2 pr-3">
                                                 <x-tronscan-link :address="$row['from'] ?? ''" />
                                             </td>
-                                            <td class="py-2 pr-3">{{ $row['symbol'] }}</td>
+                                            <td class="py-2 pr-3">
+                                                <div>{{ $row['symbol'] }}</div>
+                                                @if (! empty($row['contract']))
+                                                    <x-tronscan-link :address="$row['contract']" :short="true" class="text-ink-muted" />
+                                                @endif
+                                            </td>
                                             <td class="py-2 pr-3 font-mono text-right">{{ $row['amount'] }}</td>
                                             <td class="py-2 pr-3">{{ $row['tx_count'] ?? '' }}</td>
                                             <td class="py-2 text-ink-muted">{{ $row['comment'] }}</td>
@@ -516,7 +521,12 @@
                                             <td class="py-2 pr-3">
                                                 <x-tronscan-link :address="$row['to'] ?? ''" />
                                             </td>
-                                            <td class="py-2 pr-3">{{ $row['symbol'] }}</td>
+                                            <td class="py-2 pr-3">
+                                                <div>{{ $row['symbol'] }}</div>
+                                                @if (! empty($row['contract']))
+                                                    <x-tronscan-link :address="$row['contract']" :short="true" class="text-ink-muted" />
+                                                @endif
+                                            </td>
                                             <td class="py-2 pr-3 font-mono text-right">{{ $row['amount'] }}</td>
                                             <td class="py-2 pr-3">{{ $row['tx_count'] ?? '' }}</td>
                                             <td class="py-2 text-ink-muted">{{ $row['comment'] }}</td>

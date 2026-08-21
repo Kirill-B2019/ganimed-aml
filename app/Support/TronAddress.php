@@ -31,6 +31,16 @@ class TronAddress
         return 'https://tronscan.org/#/address/'.$address;
     }
 
+    public static function short(string $address): string
+    {
+        $address = trim($address);
+        if (strlen($address) < 12) {
+            return $address;
+        }
+
+        return substr($address, 0, 6).'…'.substr($address, -4);
+    }
+
     public static function fromHex(string $hex): string
     {
         $hex = strtolower(ltrim($hex, '0x'));
