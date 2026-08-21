@@ -5,6 +5,7 @@ namespace App\Services\Reports;
 
 use App\Enums\CheckType;
 use App\Enums\CheckVerdict;
+use App\Enums\RiskGrade;
 use App\Models\Check;
 use App\Models\User;
 use App\Support\MskTime;
@@ -57,7 +58,7 @@ class CheckReportPresenter
     public function data(Check $check, bool $pdf = false, bool $compact = false): array
     {
         $onchain = is_array($check->enrichment) ? $check->enrichment : [];
-        $isWalletReport = in_array($check->type, [CheckType::Address, CheckType::Scan], true);
+        $isWalletReport = $check->type->isWallet();
         $isTokenReport = $check->type === CheckType::Token;
         $hasOnchain = $isWalletReport && $onchain !== [] && empty($onchain['skipped']) && empty($onchain['error']);
         $usdSummary = $isWalletReport ? $this->usd->summarize($check) : null;
@@ -66,6 +67,9 @@ class CheckReportPresenter
         $flagRows = $this->flagRows($check);
         [$hotFlags, $quietFlags] = $this->partitionFlags($flagRows);
         [$hotRadar, $quietRadarCount] = $this->partitionRadar($radarAxes);
+        $riskGrade = $isWalletReport && $check->isCompleted()
+            ? RiskGrade::fromScore((int) $check->risk_score)
+            : null;
 
         $balanceRows = $isWalletReport && $hasOnchain ? $this->balanceRows($check, $onchain, $usdSummary) : [];
         $inflowRows = $isWalletReport && $hasOnchain ? $this->inflowRows($check, $onchain) : [];
@@ -100,12 +104,14 @@ class CheckReportPresenter
             'hasOnchain' => $hasOnchain,
             'usdSummary' => $usdSummary,
             'nativeRow' => $nativeRow,
-            'pills' => $this->pills($check, $isWalletReport && $hasOnchain, $onchain),
+            'pills' => $this->pills($check, $isWalletReport && $hasOnchain, $onchain, $riskGrade),
             'readingNote' => $this->readingNote($check, $isWalletReport && $hasOnchain, $onchain),
             'flagRows' => $flagRows,
             'hotFlags' => $hotFlags,
             'quietFlags' => $quietFlags,
             'scoreBreakdown' => $check->isCompleted() ? $this->scoring->breakdown($check) : null,
+            'riskGrade' => $riskGrade,
+            'riskGradeLegend' => $riskGrade ? RiskGrade::legend() : [],
             'canOverrideVerdict' => $check->canOverrideVerdict(),
             'overrideNote' => is_string($check->overridePayload()['note'] ?? null) ? $check->overridePayload()['note'] : '',
             'objectRows' => $this->objectRows($check, $isWalletReport && $hasOnchain, $onchain, $usdSummary),
@@ -126,7 +132,7 @@ class CheckReportPresenter
             'walletGraphPending' => (bool) ($walletGraph['pending'] ?? false),
             'signerRows' => $isWalletReport && $hasOnchain ? $this->signerRows($check, $onchain) : [],
             'controlNarrative' => $isWalletReport && $hasOnchain ? $this->controlNarrative($check, $onchain) : '',
-            'conclusion' => $this->conclusion($check, $isWalletReport && $hasOnchain, $onchain, $usdSummary),
+            'conclusion' => $this->conclusion($check, $isWalletReport && $hasOnchain, $onchain, $usdSummary, $riskGrade),
             'freshness' => $this->freshness($check, $onchain, $isWalletReport),
             'delta' => $previous ? $this->delta($previous, $check, $usdSummary, $inflowRows) : null,
         ];
@@ -146,7 +152,7 @@ class CheckReportPresenter
      * @param  array<string, mixed>  $onchain
      * @return list<array{label: string, tone: string}>
      */
-    private function pills(Check $check, bool $hasOnchain, array $onchain): array
+    private function pills(Check $check, bool $hasOnchain, array $onchain, ?RiskGrade $riskGrade = null): array
     {
         $goplus = $this->goplusVerdict($check);
         $pills = [[
@@ -157,6 +163,13 @@ class CheckReportPresenter
                 default => 'success',
             },
         ]];
+
+        if ($riskGrade) {
+            $pills[] = [
+                'label' => __('aml.pill_risk_grade', ['grade' => $riskGrade->label()]),
+                'tone' => $riskGrade->tone(),
+            ];
+        }
 
         if ($check->verdict === CheckVerdict::Review && $goplus === CheckVerdict::Clear) {
             $pills[] = ['label' => __('aml.pill_file_review'), 'tone' => 'warning'];
@@ -899,12 +912,20 @@ class CheckReportPresenter
      * @param  array<string, mixed>  $onchain
      * @return list<string>
      */
-    private function conclusion(Check $check, bool $hasOnchain, array $onchain, ?array $usdSummary): array
+    private function conclusion(Check $check, bool $hasOnchain, array $onchain, ?array $usdSummary, ?RiskGrade $riskGrade = null): array
     {
         $parts = [__('aml.conclusion_goplus', [
             'verdict' => $check->verdict?->label() ?? '—',
             'score' => (string) $check->risk_score,
         ])];
+
+        if ($riskGrade) {
+            $parts[] = __('aml.conclusion_risk_grade', [
+                'grade' => $riskGrade->label(),
+                'range' => $riskGrade->range(),
+                'score' => (string) (int) $check->risk_score,
+            ]);
+        }
 
         if ($hasOnchain && is_array($usdSummary)) {
             $parts[] = __('aml.conclusion_usd', [

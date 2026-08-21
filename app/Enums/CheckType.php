@@ -15,4 +15,9 @@ enum CheckType: string
     {
         return __('aml.types.'.$this->value);
     }
+
+    public function isWallet(): bool
+    {
+        return $this === self::Address || $this === self::Scan;
+    }
 }

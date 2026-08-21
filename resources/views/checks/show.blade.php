@@ -2,7 +2,8 @@
 <x-app-layout :title="$reportTitle ?? __('aml.report_title')">
     @php
         $isMultisig = $showOnchain && ($onchain['control']['type'] ?? '') === 'multisig';
-        $scoreTone = ((int) ($check->risk_score ?? 0)) > 0 ? 'warning' : 'success';
+        $riskGrade = $riskGrade ?? null;
+        $scoreTone = $riskGrade?->tone() ?? (((int) ($check->risk_score ?? 0)) > 0 ? 'warning' : 'success');
         $officialUsdt = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
         $pieMax = max(1, collect($tokenPieSlices ?? [])->sum('value'));
         $inflowMax = max(1, collect($inflowBars ?? [])->max('value') ?? 1);
@@ -26,6 +27,9 @@
                 <div class="flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible [&::-webkit-scrollbar]:hidden">
                     @if ($check->isCompleted())
                         <x-verdict-badge :verdict="$check->verdict" />
+                        @if ($riskGrade)
+                            <x-risk-grade-badge :grade="$riskGrade" />
+                        @endif
                         <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'file'])">{{ __('aml.pdf_file') }}</x-secondary-button>
                         @if ($check->type !== \App\Enums\CheckType::Token)
                             <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'full'])">{{ __('aml.pdf_full') }}</x-secondary-button>
@@ -119,14 +123,22 @@
                         <div class="text-[11px] uppercase tracking-[0.08em] text-ink-muted">{{ __('aml.flag_score') }}</div>
                         <div @class([
                             'mt-1 text-2xl font-semibold tabular-nums tracking-tight',
-                            'text-amber-800' => $scoreTone === 'warning',
                             'text-emerald-800' => $scoreTone === 'success',
+                            'text-yellow-800' => $scoreTone === 'caution',
+                            'text-amber-800' => $scoreTone === 'warning',
+                            'text-orange-800' => $scoreTone === 'severe',
+                            'text-rose-800' => $scoreTone === 'danger',
                         ])>{{ $check->risk_score ?? '—' }}</div>
+                        @if ($riskGrade)
+                            <p class="mt-1 text-sm font-medium text-ink">{{ $riskGrade->label() }}</p>
+                        @endif
                         @if ($check->isCompleted() && ! empty($scoreBreakdown['formula']))
                             <p class="mt-1 text-xs text-ink-muted">{{ $scoreBreakdown['formula'] }}</p>
                         @endif
                     </div>
                 </div>
+
+                @include('checks.partials.risk-grade-legend')
 
                 @if ($check->isCompleted() && ! empty($conclusion))
                     <div class="space-y-3 border-t border-ink-line pt-5 text-sm leading-7 text-ink">
@@ -189,7 +201,16 @@
             @endif
 
             @if ($isWalletReport)
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div @class([
+                    'grid grid-cols-2 gap-3',
+                    'lg:grid-cols-5' => $riskGrade,
+                    'lg:grid-cols-4' => ! $riskGrade,
+                ])>
+                    @if ($riskGrade)
+                        <x-report-stat :label="__('aml.risk_grade')" :tone="$riskGrade->tone()">
+                            {{ $riskGrade->label() }}
+                        </x-report-stat>
+                    @endif
                     <x-report-stat :label="__('aml.control_keys')" :tone="$isMultisig ? 'warning' : 'neutral'">
                         @if ($isMultisig)
                             {{ __('aml.multisig') }} {{ $onchain['control']['threshold'] ?? '' }}

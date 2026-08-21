@@ -205,6 +205,7 @@ JSON;
                                     'status' => 'api_docs_field_status',
                                     'verdict' => 'api_docs_field_verdict',
                                     'risk_score' => 'api_docs_field_score',
+                                    'risk_grade' => 'api_docs_field_risk_grade',
                                     'flags' => 'api_docs_field_flags',
                                     'raw_response' => 'api_docs_field_raw',
                                     'enrichment' => 'api_docs_field_enrichment',

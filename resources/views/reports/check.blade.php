@@ -19,7 +19,9 @@
         .brand-name { display: inline-block; margin-left: 8px; font-size: 12px; letter-spacing: 2px; color: #0C0C0D; vertical-align: middle; }
         .brand-aml { color: #6F6E69; }
         .pill-success { background: #ecfdf5; }
+        .pill-caution { background: #fefce8; }
         .pill-warning { background: #fffbeb; }
+        .pill-severe { background: #fff7ed; }
         .pill-danger { background: #fef2f2; }
         .pill-neutral { background: #f3f4f6; }
         .callout { border: 1px solid #f59e0b; background: #fffbeb; padding: 8px 10px; margin: 10px 0 12px; }
@@ -27,7 +29,9 @@
         .stats .v { font-size: 14px; font-weight: bold; }
         .stats .l { font-size: 9px; color: #555; margin-top: 2px; }
         .stat-success { background: #ecfdf5; }
+        .stat-caution { background: #fefce8; }
         .stat-warning { background: #fffbeb; }
+        .stat-severe { background: #fff7ed; }
         .stat-danger { background: #fef2f2; }
         table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
         th, td { border: 1px solid #e5e7eb; padding: 5px 7px; text-align: left; vertical-align: top; }
@@ -94,6 +98,8 @@
             'review' => 'warning',
             default => 'success',
         };
+        $riskGrade = $riskGrade ?? null;
+        $scoreTone = $riskGrade?->tone() ?? (((int) $check->risk_score) > 0 ? 'warning' : 'success');
         $isMultisig = $showOnchain && ($onchain['control']['type'] ?? '') === 'multisig';
         $pieMax = max(1, collect($tokenPieSlices ?? [])->sum('value'));
         $officialUsdt = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
@@ -105,9 +111,15 @@
                 <div class="v">{{ $check->verdict?->label() ?? '—' }}</div>
                 <div class="l">{{ __('aml.verdict') }}</div>
             </td>
-            <td class="{{ ((int) $check->risk_score) > 0 ? 'stat-warning' : 'stat-success' }}">
-                <div class="v">{{ $check->risk_score }}</div>
-                <div class="l">{{ __('aml.flag_score') }}</div>
+            <td class="stat-{{ $scoreTone }}">
+                <div class="v">
+                    @if ($riskGrade)
+                        {{ $riskGrade->label() }} · {{ $check->risk_score }}
+                    @else
+                        {{ $check->risk_score }}
+                    @endif
+                </div>
+                <div class="l">{{ $riskGrade ? __('aml.risk_grade') : __('aml.flag_score') }}</div>
             </td>
             @if ($isWalletReport)
                 <td class="{{ $isMultisig ? 'stat-warning' : '' }}">
@@ -144,6 +156,19 @@
             @endif
         </tr>
     </table>
+
+    @if ($riskGrade && ! empty($riskGradeLegend))
+        <p class="muted" style="margin-bottom: 4px;">{{ __('aml.risk_grade_legend') }}. {{ __('aml.risk_grade_legend_hint') }}</p>
+        <table class="legend">
+            <tr>
+                @foreach ($riskGradeLegend as $item)
+                    <td style="background-color: {{ $item['swatch'] }}; width: 8px; padding: 0;">&nbsp;</td>
+                    <td @if ($riskGrade->value === $item['key']) style="font-weight: bold;" @endif>{{ $item['label'] }} {{ $item['range'] }}</td>
+                @endforeach
+            </tr>
+        </table>
+        <p class="muted">{{ $riskGrade->hint() }}</p>
+    @endif
 
     <div class="callout">
         <strong>{{ __('aml.reading_title') }}.</strong> {{ $readingNote }}

@@ -4,7 +4,9 @@
 @php
     $classes = match ($tone) {
         'success' => 'bg-emerald-50 text-emerald-900 ring-emerald-200',
+        'caution' => 'bg-yellow-50 text-yellow-900 ring-yellow-200',
         'warning' => 'bg-amber-50 text-amber-950 ring-amber-200',
+        'severe' => 'bg-orange-50 text-orange-950 ring-orange-200',
         'danger' => 'bg-rose-50 text-rose-900 ring-rose-200',
         default => 'bg-ink-paper text-ink ring-ink-line',
     };

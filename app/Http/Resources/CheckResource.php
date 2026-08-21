@@ -3,7 +3,7 @@
 // | KB @CerberRus00 - Nexus Invest Team
 namespace App\Http\Resources;
 
-use App\Enums\CheckType;
+use App\Enums\RiskGrade;
 use App\Models\Check;
 use App\Services\Onchain\AssetNarrativeService;
 use App\Services\Onchain\TokenCompositionChart;
@@ -25,13 +25,16 @@ class CheckResource extends JsonResource
             'status' => $this->status->value,
             'verdict' => $this->verdict?->value,
             'risk_score' => $this->risk_score,
+            'risk_grade' => $this->type->isWallet() && $this->isCompleted()
+                ? RiskGrade::fromScore((int) $this->risk_score)->value
+                : null,
             'locale' => $this->locale,
             'flags' => $this->flags,
             'raw_response' => $this->raw_response,
             'enrichment' => $this->enrichment,
             'asset_narrative' => app(AssetNarrativeService::class)->describe($this->resource),
             'token_composition' => app(TokenCompositionChart::class)->slices($this->resource),
-            'wallet_usd' => in_array($this->type, [CheckType::Address, CheckType::Scan], true)
+            'wallet_usd' => $this->type->isWallet()
                 ? app(WalletUsdValuationService::class)->summarize($this->resource)
                 : null,
             'error_message' => $this->error_message,

@@ -4,13 +4,17 @@
 @php
     $valueClass = match ($tone) {
         'success' => 'text-emerald-800',
+        'caution' => 'text-yellow-800',
         'warning' => 'text-amber-800',
+        'severe' => 'text-orange-800',
         'danger' => 'text-rose-800',
         default => 'text-ink',
     };
     $stripe = match ($tone) {
         'success' => 'border-l-emerald-700',
+        'caution' => 'border-l-yellow-600',
         'warning' => 'border-l-amber-600',
+        'severe' => 'border-l-orange-600',
         'danger' => 'border-l-rose-700',
         default => 'border-l-ink',
     };

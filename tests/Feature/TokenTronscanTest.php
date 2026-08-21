@@ -85,6 +85,7 @@ class TokenTronscanTest extends TestCase
             ->assertSee(__('aml.pdf_file'), false)
             ->assertDontSee(__('aml.pdf_full'), false)
             ->assertDontSee(__('aml.radar_title'), false)
+            ->assertDontSee(__('aml.risk_grade_legend'), false)
             ->getContent();
 
         $this->assertStringContainsString('GoPlus · Tronscan', $html);
