@@ -15,45 +15,106 @@ class TronGridClient
     /**
      * @return array<string, mixed>
      */
-    public function account(string $address): array
+    public function account(string $address, bool $soft = false): array
     {
-        $payload = $this->getJson('/v1/accounts/'.$address);
+        $seconds = (int) config('onchain.account_cache_seconds', 900);
+        $fetch = function () use ($address, $soft) {
+            $payload = $this->getJson('/v1/accounts/'.$address, [], $soft);
+            if ($this->isRateLimited($payload)) {
+                return ['_rate_limited' => true];
+            }
 
-        return is_array($payload['data'][0] ?? null) ? $payload['data'][0] : [];
+            return is_array($payload['data'][0] ?? null) ? $payload['data'][0] : [];
+        };
+
+        if ($seconds <= 0) {
+            return $fetch();
+        }
+
+        $cached = Cache::get($this->accountCacheKey($address));
+        if (is_array($cached) && empty($cached['_rate_limited'])) {
+            return $cached;
+        }
+
+        $account = $fetch();
+        if (! $this->isRateLimited($account)) {
+            Cache::put($this->accountCacheKey($address), $account, $seconds);
+        }
+
+        return $account;
     }
 
     /**
      * @return list<array<string, mixed>>
      */
-    public function incomingTrc20(string $address, int $limit = 50): array
+    public function incomingTrc20(string $address, int $limit = 50, int $pages = 1, bool $soft = false, ?string $fingerprint = null): array
     {
-        $payload = $this->getJson('/v1/accounts/'.$address.'/transactions/trc20', [
+        return $this->collectPages('/v1/accounts/'.$address.'/transactions/trc20', [
             'limit' => $limit,
             'only_to' => 'true',
             'only_confirmed' => 'true',
-        ]);
-
-        return is_array($payload['data'] ?? null) ? array_values($payload['data']) : [];
+        ], $pages, $soft, $fingerprint);
     }
 
     /**
      * @return list<array<string, mixed>>
      */
-    public function incomingTrx(string $address, int $limit = 50): array
+    public function outgoingTrc20(string $address, int $limit = 50, int $pages = 1, bool $soft = false): array
     {
-        $payload = $this->getJson('/v1/accounts/'.$address.'/transactions', [
+        return $this->collectPages('/v1/accounts/'.$address.'/transactions/trc20', [
+            'limit' => $limit,
+            'only_from' => 'true',
+            'only_confirmed' => 'true',
+        ], $pages, $soft);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function incomingTrx(string $address, int $limit = 50, int $pages = 1, bool $soft = false): array
+    {
+        $rows = $this->collectPages('/v1/accounts/'.$address.'/transactions', [
             'limit' => $limit,
             'only_to' => 'true',
             'only_confirmed' => 'true',
-        ]);
+        ], $pages, $soft);
 
-        $rows = is_array($payload['data'] ?? null) ? $payload['data'] : [];
+        return $this->onlyTransfers($rows);
+    }
 
-        return array_values(array_filter($rows, function ($row) {
-            $type = $row['raw_data']['contract'][0]['type'] ?? '';
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function outgoingTrx(string $address, int $limit = 50, int $pages = 1, bool $soft = false): array
+    {
+        $rows = $this->collectPages('/v1/accounts/'.$address.'/transactions', [
+            'limit' => $limit,
+            'only_from' => 'true',
+            'only_confirmed' => 'true',
+        ], $pages, $soft);
 
-            return $type === 'TransferContract';
-        }));
+        return $this->onlyTransfers($rows);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public function internalTransactions(string $address, int $limit = 50, bool $soft = true): array
+    {
+        return $this->collectPages('/v1/accounts/'.$address.'/internal-transactions', [
+            'limit' => $limit,
+            'only_confirmed' => 'true',
+        ], 1, $soft);
+    }
+
+    public function lastFingerprint(): ?string
+    {
+        return $this->lastFingerprint;
+    }
+
+    public function lastWasRateLimited(): bool
+    {
+        return $this->lastRateLimited;
     }
 
     public function hexToBase58(string $hex): string
@@ -61,11 +122,84 @@ class TronGridClient
         return TronAddress::fromHex($hex);
     }
 
+    private ?string $lastFingerprint = null;
+
+    private bool $lastRateLimited = false;
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @return list<array<string, mixed>>
+     */
+    private function collectPages(string $path, array $query, int $pages, bool $soft, ?string $startFingerprint = null): array
+    {
+        $pages = max(1, $pages);
+        $all = [];
+        $fingerprint = $startFingerprint;
+        $this->lastFingerprint = null;
+        $this->lastRateLimited = false;
+
+        for ($page = 0; $page < $pages; $page++) {
+            $pageQuery = $query;
+            if (is_string($fingerprint) && $fingerprint !== '') {
+                $pageQuery['fingerprint'] = $fingerprint;
+            }
+            $payload = $this->getJson($path, $pageQuery, $soft);
+            if ($this->isRateLimited($payload)) {
+                $this->lastRateLimited = true;
+                break;
+            }
+            $rows = is_array($payload['data'] ?? null) ? array_values($payload['data']) : [];
+            $all = array_merge($all, $rows);
+            $fingerprint = $this->fingerprintFrom($payload);
+            $this->lastFingerprint = $fingerprint;
+            if ($fingerprint === null || $rows === []) {
+                break;
+            }
+        }
+
+        return $all;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function onlyTransfers(array $rows): array
+    {
+        return array_values(array_filter($rows, function ($row) {
+            if (! empty($row['_rate_limited'])) {
+                return false;
+            }
+            $type = $row['raw_data']['contract'][0]['type'] ?? '';
+
+            return $type === 'TransferContract';
+        }));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function fingerprintFrom(array $payload): ?string
+    {
+        $meta = is_array($payload['meta'] ?? null) ? $payload['meta'] : [];
+        $value = $meta['fingerprint'] ?? $payload['fingerprint'] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function isRateLimited(array $payload): bool
+    {
+        return ! empty($payload['_rate_limited']);
+    }
+
     /**
      * @param  array<string, mixed>  $query
      * @return array<string, mixed>
      */
-    private function getJson(string $path, array $query = []): array
+    private function getJson(string $path, array $query = [], bool $soft = false): array
     {
         $attempts = max(1, (int) config('onchain.retry_attempts', 3));
         $response = null;
@@ -82,6 +216,15 @@ class TronGridClient
             }
         }
 
+        if ($response->status() === 429) {
+            if ($soft) {
+                $this->lastRateLimited = true;
+
+                return ['_rate_limited' => true, 'data' => []];
+            }
+            $response->throw();
+        }
+
         $response->throw();
         $payload = $response->json();
 
@@ -90,7 +233,7 @@ class TronGridClient
 
     private function throttle(): void
     {
-        $minMs = (int) config('onchain.min_interval_ms', 1100);
+        $minMs = (int) config('onchain.min_interval_ms', 1300);
         if ($minMs <= 0) {
             return;
         }
@@ -143,5 +286,10 @@ class TronGridClient
         }
 
         return $request;
+    }
+
+    private function accountCacheKey(string $address): string
+    {
+        return 'onchain:tron:account:'.$address;
     }
 }

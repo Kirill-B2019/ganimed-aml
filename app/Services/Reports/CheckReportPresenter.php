@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\TronAddress;
 use App\Services\Onchain\AssetNarrativeService;
 use App\Services\Onchain\TokenCompositionChart;
+use App\Services\Onchain\WalletGraphChart;
 use App\Services\Onchain\WalletUsdValuationService;
 use App\Services\Risk\RiskRadarService;
 use App\Services\Risk\RiskScoringService;
@@ -46,6 +47,7 @@ class CheckReportPresenter
         private TokenCompositionChart $pie,
         private WalletUsdValuationService $usd,
         private RiskScoringService $scoring,
+        private WalletGraphChart $graphChart,
     ) {}
 
     /**
@@ -65,6 +67,9 @@ class CheckReportPresenter
 
         $balanceRows = $isWalletReport && $hasOnchain ? $this->balanceRows($check, $onchain, $usdSummary) : [];
         $inflowRows = $isWalletReport && $hasOnchain ? $this->inflowRows($check, $onchain) : [];
+        $walletGraph = $isWalletReport && $hasOnchain && is_array($onchain['graph'] ?? null)
+            ? $onchain['graph']
+            : [];
         $nativeRow = collect($balanceRows)->first(fn ($row) => ($row['kind'] ?? '') === 'native');
         $previous = $check->previousCheck;
 
@@ -102,6 +107,9 @@ class CheckReportPresenter
             'balanceRows' => $balanceRows,
             'inflowRows' => $inflowRows,
             'inflowBars' => $this->withBarPercents($this->inflowBars($inflowRows)),
+            'walletGraph' => $walletGraph,
+            'walletGraphSvg' => $walletGraph !== [] ? $this->graphChart->svg($walletGraph) : '',
+            'walletGraphPending' => (bool) ($walletGraph['pending'] ?? false),
             'signerRows' => $isWalletReport && $hasOnchain ? $this->signerRows($check, $onchain) : [],
             'controlNarrative' => $isWalletReport && $hasOnchain ? $this->controlNarrative($check, $onchain) : '',
             'conclusion' => $this->conclusion($check, $isWalletReport && $hasOnchain, $onchain, $usdSummary),

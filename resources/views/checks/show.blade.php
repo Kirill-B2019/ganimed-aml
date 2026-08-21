@@ -425,6 +425,10 @@
                     </x-report-card>
                 </div>
 
+                <x-report-section :title="__('aml.wallet_graph')" :hint="__('aml.wallet_graph_hint')">
+                    @include('checks.partials.inflow-graph')
+                </x-report-section>
+
                 <x-report-section :title="__('aml.inflows')" :hint="__('aml.inflow_hint')">
                     @if (! empty($inflowBars) && collect($inflowBars)->sum('value') > 0)
                         <h3 class="text-sm font-semibold text-ink">{{ __('aml.inflow_bar_title') }}</h3>

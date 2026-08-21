@@ -6,6 +6,7 @@ namespace App\Services\Onchain;
 use App\Enums\CheckType;
 use App\Enums\CheckStatus;
 use App\Enums\CheckVerdict;
+use App\Jobs\ExpandWalletGraphJob;
 use App\Models\Check;
 use App\Support\TronAddress;
 use Throwable;
@@ -29,13 +30,12 @@ class OnchainEnrichmentService
             return $check;
         }
 
+        $deep = $check->type === CheckType::Scan;
+
         if ($this->shouldRefetch(is_array($check->enrichment) ? $check->enrichment : null)) {
             try {
-                $check->update(['enrichment' => $this->forAddress(
-                    $check->subject,
-                    $check->chain_id,
-                    $check->type === CheckType::Scan,
-                )]);
+                $payload = $this->forAddress($check->subject, $check->chain_id, $deep);
+                $check->update(['enrichment' => $payload]);
             } catch (Throwable $e) {
                 $check->update([
                     'enrichment' => [
@@ -48,7 +48,115 @@ class OnchainEnrichmentService
             $check = $check->refresh();
         }
 
-        return $this->promoteOnchainReview($check);
+        $this->queueGraphExpansion($check);
+
+        return $this->promoteOnchainReview($check->refresh());
+    }
+
+    /**
+     * Type hop-1 neighbors and optionally walk hop-2. Scan only; never from the HTTP request.
+     */
+    public function expandGraph(Check $check): Check
+    {
+        if ($check->type !== CheckType::Scan) {
+            return $check;
+        }
+
+        $onchain = is_array($check->enrichment) ? $check->enrichment : [];
+        if ($onchain === [] || ! empty($onchain['error']) || ! empty($onchain['skipped'])) {
+            return $check;
+        }
+
+        $graph = is_array($onchain['graph'] ?? null) ? $onchain['graph'] : [];
+        if (($graph['pending'] ?? false) !== true) {
+            return $check;
+        }
+
+        $truncated = (bool) ($graph['truncated'] ?? false);
+        $subject = $check->subject;
+        $limit = (int) ($onchain['tx_window'] ?? config('onchain.scan_tx_limit', 200));
+        $pages = max(1, (int) config('onchain.fingerprint_pages', 2));
+
+        $nodes = $this->nodesById(is_array($graph['nodes'] ?? null) ? $graph['nodes'] : []);
+        $edges = is_array($graph['edges'] ?? null) ? $graph['edges'] : [];
+        $fingerprint = is_string($onchain['trc20_fingerprint'] ?? null) ? $onchain['trc20_fingerprint'] : null;
+        if ($pages > 1 && $fingerprint) {
+            $extra = $this->tron->incomingTrc20($subject, $limit, $pages - 1, true, $fingerprint);
+            $truncated = $truncated || $this->tron->lastWasRateLimited();
+            $this->ingestTrc20Edges($nodes, $edges, $subject, $extra, 'in');
+        }
+
+        $maxNodes = (int) config('onchain.graph_max_nodes', 20);
+        $neighborCap = (int) config('onchain.graph_neighbor_cap', 12);
+        $truncated = $this->trimGraph($nodes, $edges, $subject, $maxNodes, $neighborCap) || $truncated;
+
+        $hop1Ids = [];
+        foreach ($nodes as $id => $node) {
+            if ((int) ($node['hop'] ?? 1) === 1 && $id !== $subject) {
+                $hop1Ids[] = $id;
+            }
+        }
+
+        foreach ($hop1Ids as $id) {
+            if (($nodes[$id]['kind'] ?? 'unknown') !== 'unknown') {
+                continue;
+            }
+            $account = $this->tron->account($id, true);
+            if (! empty($account['_rate_limited'])) {
+                $truncated = true;
+                break;
+            }
+            $nodes[$id]['kind'] = $this->kindFromAccount($id, $account);
+        }
+
+        $seeds = $this->hop2Seeds($nodes, $edges, $subject);
+        foreach ($seeds as $seed) {
+            if (count($nodes) >= $maxNodes) {
+                $truncated = true;
+                break;
+            }
+            $rows = $this->tron->incomingTrc20($seed, min(50, $limit), 1, true);
+            if ($this->tron->lastWasRateLimited()) {
+                $truncated = true;
+                break;
+            }
+            foreach ($this->moneyTrc20($rows) as $tx) {
+                $from = (string) ($tx['from'] ?? '');
+                if ($from === '' || $from === $seed || isset($nodes[$from])) {
+                    if ($from !== '' && $from !== $seed) {
+                        $edges[] = $this->edge($from, $seed, $tx, 'in');
+                    }
+                    continue;
+                }
+                if (count($nodes) >= $maxNodes) {
+                    $truncated = true;
+                    break;
+                }
+                $kind = $this->kindFromKnown($from);
+                if ($kind === 'unknown') {
+                    $account = $this->tron->account($from, true);
+                    if (! empty($account['_rate_limited'])) {
+                        $truncated = true;
+                        $kind = 'unknown';
+                    } else {
+                        $kind = $this->kindFromAccount($from, $account);
+                    }
+                }
+                $nodes[$from] = ['id' => $from, 'kind' => $kind, 'hop' => 2];
+                $edges[] = $this->edge($from, $seed, $tx, 'in');
+            }
+        }
+
+        $onchain['graph'] = [
+            'nodes' => array_values($nodes),
+            'edges' => $this->uniqueEdges($edges),
+            'truncated' => $truncated,
+            'pending' => false,
+            'hop2_queued' => true,
+        ];
+        $check->update(['enrichment' => $onchain]);
+
+        return $check->refresh();
     }
 
     /**
@@ -143,20 +251,394 @@ class OnchainEnrichmentService
         $limit = $deep
             ? (int) config('onchain.scan_tx_limit', 200)
             : (int) config('onchain.tx_limit', 50);
-        $account = $this->tron->account($address);
-        $trc20Tx = $this->tron->incomingTrc20($address, $limit);
-        $trxTx = $this->tron->incomingTrx($address, $limit);
-        $tokenMeta = $this->tokenMetaFromTransfers($trc20Tx);
 
-        return [
+        $account = $this->tron->account($address);
+        $inTrc20 = $this->tron->incomingTrc20($address, $limit);
+        $trc20Fingerprint = $this->tron->lastFingerprint();
+        $inTrx = $this->tron->incomingTrx($address, $limit);
+        $outTrc20 = $this->tron->outgoingTrc20($address, $limit, 1, true);
+        $partial = $this->tron->lastWasRateLimited();
+        $outTrx = $this->tron->outgoingTrx($address, $limit, 1, true);
+        $partial = $partial || $this->tron->lastWasRateLimited();
+        $internalTx = $this->tron->internalTransactions($address, $limit, true);
+        $partial = $partial || $this->tron->lastWasRateLimited();
+
+        $moneyIn = $this->moneyTrc20($inTrc20);
+        $moneyOut = $this->moneyTrc20($outTrc20);
+        $approvals = count($inTrc20) + count($outTrc20) - count($moneyIn) - count($moneyOut);
+        $tokenMeta = $this->tokenMetaFromTransfers(array_merge($moneyIn, $moneyOut));
+        $graph = $this->buildHop1Graph($address, $account, $inTrx, $outTrx, $moneyIn, $moneyOut, $internalTx, $deep);
+
+        $payload = [
             'source' => 'trongrid',
             'network' => 'tron',
             'fetched_at' => now()->toIso8601String(),
             'tx_window' => $limit,
             'control' => $this->control($account),
             'balances' => $this->balances($account, $tokenMeta),
-            'inflows' => $this->inflows($trxTx, $trc20Tx),
+            'inflows' => $this->inflows($inTrx, $moneyIn),
+            'outflows' => $this->outflows($outTrx, $moneyOut),
+            'approvals' => max(0, $approvals),
+            'internal_count' => count($internalTx),
+            'partial' => $partial || (bool) ($graph['truncated'] ?? false),
+            'graph' => $graph,
+            'trc20_fingerprint' => $trc20Fingerprint,
         ];
+
+        return $payload;
+    }
+
+    private function queueGraphExpansion(Check $check): void
+    {
+        if ($check->type !== CheckType::Scan) {
+            return;
+        }
+
+        $onchain = is_array($check->enrichment) ? $check->enrichment : [];
+        $graph = is_array($onchain['graph'] ?? null) ? $onchain['graph'] : [];
+        if (($graph['pending'] ?? false) !== true) {
+            return;
+        }
+        if (! empty($graph['hop2_queued'])) {
+            return;
+        }
+
+        $onchain['graph']['hop2_queued'] = true;
+        $check->update(['enrichment' => $onchain]);
+        ExpandWalletGraphJob::dispatch($check->id);
+    }
+
+    /**
+     * @param  array<string, mixed>  $account
+     * @param  list<array<string, mixed>>  $inTrx
+     * @param  list<array<string, mixed>>  $outTrx
+     * @param  list<array<string, mixed>>  $inTrc20
+     * @param  list<array<string, mixed>>  $outTrc20
+     * @param  list<array<string, mixed>>  $internalTx
+     * @return array<string, mixed>
+     */
+    private function buildHop1Graph(
+        string $subject,
+        array $account,
+        array $inTrx,
+        array $outTrx,
+        array $inTrc20,
+        array $outTrc20,
+        array $internalTx,
+        bool $deep,
+    ): array {
+        $nodes = [
+            $subject => [
+                'id' => $subject,
+                'kind' => $this->kindFromAccount($subject, $account),
+                'hop' => 0,
+            ],
+        ];
+        $edges = [];
+
+        $this->ingestTrxEdges($nodes, $edges, $subject, $inTrx, 'in');
+        $this->ingestTrxEdges($nodes, $edges, $subject, $outTrx, 'out');
+        $this->ingestTrc20Edges($nodes, $edges, $subject, $inTrc20, 'in');
+        $this->ingestTrc20Edges($nodes, $edges, $subject, $outTrc20, 'out');
+        $this->ingestInternalEdges($nodes, $edges, $subject, $internalTx);
+
+        $maxNodes = (int) config('onchain.graph_max_nodes', 20);
+        $neighborCap = (int) config('onchain.graph_neighbor_cap', 12);
+        $truncated = $this->trimGraph($nodes, $edges, $subject, $maxNodes, $neighborCap);
+
+        return [
+            'nodes' => array_values($nodes),
+            'edges' => $this->uniqueEdges($edges),
+            'truncated' => $truncated,
+            'pending' => $deep,
+            'hop2_queued' => false,
+        ];
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $nodes
+     * @param  list<array<string, mixed>>  $edges
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function ingestTrxEdges(array &$nodes, array &$edges, string $subject, array $rows, string $direction): void
+    {
+        foreach ($rows as $tx) {
+            $value = $tx['raw_data']['contract'][0]['parameter']['value'] ?? [];
+            $from = $this->base58((string) ($value['owner_address'] ?? ''));
+            $to = $this->base58((string) ($value['to_address'] ?? ''));
+            $peer = $direction === 'in' ? $from : $to;
+            if ($peer === '' || $peer === $subject) {
+                continue;
+            }
+            $this->ensureHop1($nodes, $peer);
+            $edges[] = [
+                'from' => $from !== '' ? $from : $subject,
+                'to' => $to !== '' ? $to : $subject,
+                'asset' => 'TRX',
+                'count' => 1,
+                'direction' => $direction,
+            ];
+        }
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $nodes
+     * @param  list<array<string, mixed>>  $edges
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function ingestTrc20Edges(array &$nodes, array &$edges, string $subject, array $rows, string $direction): void
+    {
+        foreach ($this->moneyTrc20($rows) as $tx) {
+            $from = (string) ($tx['from'] ?? '');
+            $to = (string) ($tx['to'] ?? '');
+            $peer = $direction === 'in' ? $from : $to;
+            if ($peer === '' || $peer === $subject) {
+                continue;
+            }
+            $this->ensureHop1($nodes, $peer);
+            $edges[] = $this->edge($from !== '' ? $from : $subject, $to !== '' ? $to : $subject, $tx, $direction);
+        }
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $nodes
+     * @param  list<array<string, mixed>>  $edges
+     * @param  list<array<string, mixed>>  $rows
+     */
+    private function ingestInternalEdges(array &$nodes, array &$edges, string $subject, array $rows): void
+    {
+        foreach ($rows as $tx) {
+            $from = (string) ($tx['from_address'] ?? $tx['from'] ?? '');
+            $to = (string) ($tx['to_address'] ?? $tx['to'] ?? '');
+            foreach ([$from, $to] as $peer) {
+                if ($peer !== '' && $peer !== $subject) {
+                    $this->ensureHop1($nodes, $peer);
+                }
+            }
+            if ($from === '' && $to === '') {
+                continue;
+            }
+            $edges[] = [
+                'from' => $from !== '' ? $from : $subject,
+                'to' => $to !== '' ? $to : $subject,
+                'asset' => 'TRX',
+                'count' => 1,
+                'direction' => 'internal',
+            ];
+        }
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $nodes
+     */
+    private function ensureHop1(array &$nodes, string $id): void
+    {
+        if (isset($nodes[$id])) {
+            return;
+        }
+        $nodes[$id] = [
+            'id' => $id,
+            'kind' => $this->kindFromKnown($id),
+            'hop' => 1,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $tx
+     * @return array<string, mixed>
+     */
+    private function edge(string $from, string $to, array $tx, string $direction): array
+    {
+        $info = is_array($tx['token_info'] ?? null) ? $tx['token_info'] : [];
+
+        return [
+            'from' => $from,
+            'to' => $to,
+            'asset' => (string) ($info['symbol'] ?? 'TRC20'),
+            'count' => 1,
+            'direction' => $direction,
+            'contract' => (string) ($info['address'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $nodes
+     * @param  list<array<string, mixed>>  $edges
+     */
+    private function trimGraph(array &$nodes, array &$edges, string $subject, int $maxNodes, int $neighborCap): bool
+    {
+        $truncated = false;
+        $hop1 = [];
+        foreach ($nodes as $id => $node) {
+            if ($id !== $subject && (int) ($node['hop'] ?? 1) === 1) {
+                $hop1[] = $id;
+            }
+        }
+        if (count($hop1) > $neighborCap) {
+            $truncated = true;
+            $keep = array_slice($hop1, 0, $neighborCap);
+            $allowed = array_flip(array_merge([$subject], $keep));
+            $nodes = array_intersect_key($nodes, $allowed);
+            $edges = array_values(array_filter(
+                $edges,
+                fn ($edge) => isset($allowed[$edge['from'] ?? '']) && isset($allowed[$edge['to'] ?? '']),
+            ));
+        }
+        if (count($nodes) > $maxNodes) {
+            $truncated = true;
+            $keepIds = array_slice(array_keys($nodes), 0, $maxNodes);
+            if (! in_array($subject, $keepIds, true)) {
+                $keepIds[0] = $subject;
+            }
+            $allowed = array_flip($keepIds);
+            $nodes = array_intersect_key($nodes, $allowed);
+            $edges = array_values(array_filter(
+                $edges,
+                fn ($edge) => isset($allowed[$edge['from'] ?? '']) && isset($allowed[$edge['to'] ?? '']),
+            ));
+        }
+
+        return $truncated;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $nodes
+     * @return array<string, array<string, mixed>>
+     */
+    private function nodesById(array $nodes): array
+    {
+        $map = [];
+        foreach ($nodes as $node) {
+            if (! is_array($node) || empty($node['id'])) {
+                continue;
+            }
+            $map[(string) $node['id']] = $node;
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $edges
+     * @return list<array<string, mixed>>
+     */
+    private function uniqueEdges(array $edges): array
+    {
+        $groups = [];
+        foreach ($edges as $edge) {
+            if (! is_array($edge)) {
+                continue;
+            }
+            $key = ($edge['from'] ?? '').'|'.($edge['to'] ?? '').'|'.($edge['asset'] ?? '').'|'.($edge['direction'] ?? '');
+            if (! isset($groups[$key])) {
+                $groups[$key] = $edge;
+                $groups[$key]['count'] = (int) ($edge['count'] ?? 1);
+            } else {
+                $groups[$key]['count'] += (int) ($edge['count'] ?? 1);
+            }
+        }
+
+        return array_values($groups);
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $nodes
+     * @param  list<array<string, mixed>>  $edges
+     * @return list<string>
+     */
+    private function hop2Seeds(array $nodes, array $edges, string $subject): array
+    {
+        $scores = [];
+        foreach ($edges as $edge) {
+            foreach (['from', 'to'] as $side) {
+                $id = (string) ($edge[$side] ?? '');
+                if ($id === '' || $id === $subject) {
+                    continue;
+                }
+                $kind = $nodes[$id]['kind'] ?? 'unknown';
+                $hop = (int) ($nodes[$id]['hop'] ?? 1);
+                if ($hop !== 1 || $kind !== 'eoa') {
+                    continue;
+                }
+                $scores[$id] = ($scores[$id] ?? 0) + (int) ($edge['count'] ?? 1);
+            }
+        }
+        arsort($scores);
+        $cap = (int) config('onchain.graph_hop2_seeds', 4);
+
+        return array_slice(array_keys($scores), 0, $cap);
+    }
+
+    /**
+     * @param  array<string, mixed>  $account
+     */
+    private function kindFromAccount(string $address, array $account): string
+    {
+        $known = $this->kindFromKnown($address);
+        if ($known !== 'unknown') {
+            return $known;
+        }
+        $type = $account['type'] ?? 0;
+        if ($type === 2 || $type === '2' || strcasecmp((string) $type, 'Contract') === 0) {
+            return 'contract';
+        }
+        if (! empty($account['bytecode']) || ! empty($account['code'])) {
+            return 'contract';
+        }
+
+        return 'eoa';
+    }
+
+    private function kindFromKnown(string $address): string
+    {
+        if (isset(self::KNOWN_TRC20[$address])) {
+            return 'token';
+        }
+
+        $bucket = $this->narrative->autoKind([
+            'symbol' => '',
+            'name' => '',
+            'contract' => $address,
+            'kind' => 'trc20',
+        ]);
+
+        return $bucket === 'canonical' ? 'token' : 'unknown';
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function moneyTrc20(array $rows): array
+    {
+        return array_values(array_filter($rows, function ($tx) {
+            if (! is_array($tx)) {
+                return false;
+            }
+            $type = strtolower((string) ($tx['type'] ?? 'transfer'));
+            if (str_contains($type, 'approval')) {
+                return false;
+            }
+            $info = is_array($tx['token_info'] ?? null) ? $tx['token_info'] : [];
+            $tokenType = strtolower((string) ($info['type'] ?? ''));
+            if (str_contains($tokenType, 'nft') || str_contains($tokenType, 'trc721')) {
+                return false;
+            }
+
+            return true;
+        }));
+    }
+
+    private function base58(string $hexOrBase58): string
+    {
+        if ($hexOrBase58 === '') {
+            return '';
+        }
+        if (TronAddress::isTron($hexOrBase58)) {
+            return $hexOrBase58;
+        }
+
+        return $this->tron->hexToBase58($hexOrBase58);
     }
 
     /**
@@ -248,19 +730,16 @@ class OnchainEnrichmentService
             $fromHex = (string) ($value['owner_address'] ?? '');
             $from = $fromHex !== '' ? $this->tron->hexToBase58($fromHex) : 'unknown';
             $raw = (string) ($value['amount'] ?? '0');
-            $this->addInflow($groups, $from, 'TRX', 6, $raw, (string) ($tx['txID'] ?? ''), (int) ($tx['block_timestamp'] ?? 0));
+            $this->addFlow($groups, $from, 'TRX', 6, $raw, (string) ($tx['txID'] ?? ''), (int) ($tx['block_timestamp'] ?? 0));
         }
 
         foreach ($trc20Tx as $tx) {
             $info = is_array($tx['token_info'] ?? null) ? $tx['token_info'] : [];
-            $symbol = (string) ($info['symbol'] ?? 'TRC20');
-            $decimals = (int) ($info['decimals'] ?? 6);
-            $from = (string) ($tx['from'] ?? 'unknown');
-            $this->addInflow(
+            $this->addFlow(
                 $groups,
-                $from,
-                $symbol,
-                $decimals,
+                (string) ($tx['from'] ?? 'unknown'),
+                (string) ($info['symbol'] ?? 'TRC20'),
+                (int) ($info['decimals'] ?? 6),
                 (string) ($tx['value'] ?? '0'),
                 (string) ($tx['transaction_id'] ?? ''),
                 (int) ($tx['block_timestamp'] ?? 0),
@@ -269,6 +748,51 @@ class OnchainEnrichmentService
             );
         }
 
+        return $this->sortedFlows($groups);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $trxTx
+     * @param  list<array<string, mixed>>  $trc20Tx
+     * @return list<array<string, mixed>>
+     */
+    private function outflows(array $trxTx, array $trc20Tx): array
+    {
+        $groups = [];
+
+        foreach ($trxTx as $tx) {
+            $value = $tx['raw_data']['contract'][0]['parameter']['value'] ?? [];
+            $toHex = (string) ($value['to_address'] ?? '');
+            $to = $toHex !== '' ? $this->tron->hexToBase58($toHex) : 'unknown';
+            $raw = (string) ($value['amount'] ?? '0');
+            $this->addFlow($groups, $to, 'TRX', 6, $raw, (string) ($tx['txID'] ?? ''), (int) ($tx['block_timestamp'] ?? 0), null, null, 'to');
+        }
+
+        foreach ($trc20Tx as $tx) {
+            $info = is_array($tx['token_info'] ?? null) ? $tx['token_info'] : [];
+            $this->addFlow(
+                $groups,
+                (string) ($tx['to'] ?? 'unknown'),
+                (string) ($info['symbol'] ?? 'TRC20'),
+                (int) ($info['decimals'] ?? 6),
+                (string) ($tx['value'] ?? '0'),
+                (string) ($tx['transaction_id'] ?? ''),
+                (int) ($tx['block_timestamp'] ?? 0),
+                (string) ($info['address'] ?? ''),
+                (string) ($info['name'] ?? ''),
+                'to',
+            );
+        }
+
+        return $this->sortedFlows($groups);
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $groups
+     * @return list<array<string, mixed>>
+     */
+    private function sortedFlows(array $groups): array
+    {
         $rows = array_values($groups);
         usort($rows, fn ($a, $b) => ($b['last_at'] ?? '') <=> ($a['last_at'] ?? ''));
 
@@ -278,9 +802,9 @@ class OnchainEnrichmentService
     /**
      * @param  array<string, array<string, mixed>>  $groups
      */
-    private function addInflow(
+    private function addFlow(
         array &$groups,
-        string $from,
+        string $peer,
         string $symbol,
         int $decimals,
         string $raw,
@@ -288,12 +812,13 @@ class OnchainEnrichmentService
         int $timestampMs,
         ?string $contract = null,
         ?string $name = null,
+        string $peerKey = 'from',
     ): void {
         $contract = (string) $contract;
-        $key = $from.'|'.$symbol.'|'.$contract;
+        $key = $peer.'|'.$symbol.'|'.$contract;
         if (! isset($groups[$key])) {
             $groups[$key] = [
-                'from' => $from,
+                $peerKey => $peer,
                 'symbol' => $symbol,
                 'name' => $name,
                 'contract' => $contract !== '' ? $contract : null,

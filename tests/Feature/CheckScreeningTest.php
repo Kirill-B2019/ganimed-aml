@@ -6,6 +6,7 @@ namespace Tests\Feature;
 use App\Enums\CheckStatus;
 use App\Enums\CheckType;
 use App\Enums\CheckVerdict;
+use App\Jobs\ExpandWalletGraphJob;
 use App\Jobs\PollAddressScanJob;
 use App\Models\Check;
 use App\Models\User;
@@ -68,8 +69,8 @@ class CheckScreeningTest extends TestCase
         ]);
 
         $response->assertRedirect();
-        Queue::assertNothingPushed();
         Queue::assertNotPushed(PollAddressScanJob::class);
+        Queue::assertPushed(ExpandWalletGraphJob::class);
         $this->assertDatabaseHas('checks', [
             'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
             'type' => CheckType::Scan->value,
@@ -86,6 +87,7 @@ class CheckScreeningTest extends TestCase
             ->get(route('checks.show', $check))
             ->assertOk()
             ->assertSee('Глубокий скан Tron: Address Security + ончейн', false)
+            ->assertSee('Второй хоп достраивается', false)
             ->assertDontSee('Deep scan is running', false)
             ->assertDontSee('Глубокое сканирование выполняется', false);
     }

@@ -4,10 +4,14 @@
 namespace Tests\Feature;
 
 use App\Enums\CheckType;
+use App\Enums\CheckStatus;
+use App\Jobs\ExpandWalletGraphJob;
+use App\Models\Check;
 use App\Models\User;
 use App\Services\Onchain\OnchainEnrichmentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class OnchainEnrichmentTest extends TestCase
@@ -17,6 +21,7 @@ class OnchainEnrichmentTest extends TestCase
     public function test_tron_account_balances_and_inflows(): void
     {
         Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/internal-transactions*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response([
                 'data' => [[
                     'transaction_id' => 'tx-usdt',
@@ -80,6 +85,12 @@ class OnchainEnrichmentTest extends TestCase
         $this->assertTrue(collect($result['inflows'])->contains(
             fn ($row) => $row['symbol'] === 'USDT' && $row['amount'] === '10'
         ));
+        $this->assertFalse($result['graph']['pending']);
+        $this->assertTrue(collect($result['graph']['nodes'])->contains(
+            fn ($node) => ($node['id'] ?? '') === 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ'
+        ));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ')
+            && ! str_contains($request->url(), 'transactions'));
     }
 
     public function test_evm_address_is_skipped(): void
@@ -212,6 +223,7 @@ class OnchainEnrichmentTest extends TestCase
     public function test_trongrid_retries_account_after_429(): void
     {
         Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/internal-transactions*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::sequence()
@@ -236,12 +248,13 @@ class OnchainEnrichmentTest extends TestCase
         $this->assertSame('trongrid', $result['source']);
         $this->assertSame('1', $result['balances'][0]['amount']);
         $this->assertArrayNotHasKey('error', $result);
-        Http::assertSentCount(4);
+        Http::assertSentCount(7);
     }
 
     public function test_rate_limit_enrichment_is_refetched_on_fill(): void
     {
         Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/internal-transactions*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::response([
@@ -279,6 +292,7 @@ class OnchainEnrichmentTest extends TestCase
     public function test_enrich_endpoint_loads_missing_onchain_data(): void
     {
         Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/internal-transactions*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response(['data' => []]),
             'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::response([
@@ -314,5 +328,156 @@ class OnchainEnrichmentTest extends TestCase
 
         $check->refresh();
         $this->assertSame('3', $check->enrichment['balances'][0]['amount']);
+    }
+
+    public function test_address_fill_does_not_queue_hop2(): void
+    {
+        Queue::fake();
+        Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/internal-transactions*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response([
+                'data' => [[
+                    'from' => 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ',
+                    'to' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+                    'value' => '1',
+                    'token_info' => [
+                        'symbol' => 'USDT',
+                        'address' => 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+                        'decimals' => 6,
+                    ],
+                ]],
+            ]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::response([
+                'data' => [['balance' => 0, 'trc20' => [], 'owner_permission' => ['threshold' => 1, 'keys' => []]]],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        $check = $user->checks()->create([
+            'type' => CheckType::Address,
+            'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'chain_id' => 'tron',
+            'status' => 'completed',
+            'verdict' => 'clear',
+            'risk_score' => 0,
+            'locale' => 'ru',
+            'raw_response' => ['sanctioned' => '0'],
+        ]);
+
+        app(OnchainEnrichmentService::class)->fill($check);
+
+        Queue::assertNotPushed(ExpandWalletGraphJob::class);
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/accounts/TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ')
+            && ! str_contains($request->url(), 'transactions'));
+    }
+
+    public function test_expand_graph_marks_neighbor_as_contract(): void
+    {
+        Http::fake(function ($request) {
+            $url = $request->url();
+            if (str_contains($url, '/accounts/TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ') && ! str_contains($url, 'transactions')) {
+                return Http::response([
+                    'data' => [[
+                        'type' => 2,
+                        'owner_permission' => ['threshold' => 1, 'keys' => []],
+                    ]],
+                ]);
+            }
+            if (str_contains($url, 'transactions/trc20') && str_contains($url, 'TM9QC18')) {
+                return Http::response(['data' => []]);
+            }
+
+            return Http::response(['data' => [['type' => 0]]], 200);
+        });
+
+        $user = User::factory()->create();
+        $check = $user->checks()->create([
+            'type' => CheckType::Scan,
+            'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'chain_id' => 'tron',
+            'status' => CheckStatus::Completed,
+            'verdict' => 'clear',
+            'risk_score' => 0,
+            'locale' => 'ru',
+            'raw_response' => ['sanctioned' => '0'],
+            'enrichment' => [
+                'source' => 'trongrid',
+                'tx_window' => 50,
+                'graph' => [
+                    'nodes' => [
+                        ['id' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk', 'kind' => 'eoa', 'hop' => 0],
+                        ['id' => 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ', 'kind' => 'unknown', 'hop' => 1],
+                    ],
+                    'edges' => [[
+                        'from' => 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ',
+                        'to' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+                        'asset' => 'USDT',
+                        'count' => 2,
+                        'direction' => 'in',
+                    ]],
+                    'truncated' => false,
+                    'pending' => true,
+                    'hop2_queued' => true,
+                ],
+            ],
+        ]);
+
+        app(OnchainEnrichmentService::class)->expandGraph($check);
+        $check->refresh();
+
+        $node = collect($check->enrichment['graph']['nodes'])->first(
+            fn ($row) => ($row['id'] ?? '') === 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ'
+        );
+        $this->assertSame('contract', $node['kind'] ?? null);
+        $this->assertFalse($check->enrichment['graph']['pending']);
+    }
+
+    public function test_expand_graph_degrades_on_neighbor_429(): void
+    {
+        Http::fake(function ($request) {
+            $url = $request->url();
+            if (str_contains($url, '/accounts/TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ') && ! str_contains($url, 'transactions')) {
+                return Http::response(['Error' => 'allowed_rps(1)'], 429);
+            }
+
+            return Http::response(['data' => []], 200);
+        });
+
+        $user = User::factory()->create();
+        $check = $user->checks()->create([
+            'type' => CheckType::Scan,
+            'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'chain_id' => 'tron',
+            'status' => CheckStatus::Completed,
+            'verdict' => 'clear',
+            'risk_score' => 0,
+            'locale' => 'ru',
+            'raw_response' => ['sanctioned' => '0'],
+            'enrichment' => [
+                'source' => 'trongrid',
+                'graph' => [
+                    'nodes' => [
+                        ['id' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk', 'kind' => 'eoa', 'hop' => 0],
+                        ['id' => 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ', 'kind' => 'unknown', 'hop' => 1],
+                    ],
+                    'edges' => [],
+                    'truncated' => false,
+                    'pending' => true,
+                    'hop2_queued' => true,
+                ],
+            ],
+        ]);
+
+        app(OnchainEnrichmentService::class)->expandGraph($check);
+        $check->refresh();
+
+        $this->assertTrue($check->enrichment['graph']['truncated']);
+        $this->assertFalse($check->enrichment['graph']['pending']);
+        $node = collect($check->enrichment['graph']['nodes'])->first(
+            fn ($row) => ($row['id'] ?? '') === 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ'
+        );
+        $this->assertSame('unknown', $node['kind'] ?? null);
+        $this->assertArrayNotHasKey('error', $check->enrichment);
     }
 }

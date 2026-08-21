@@ -360,6 +360,25 @@
         </table>
 
         @if (empty($compact))
+        <h2>{{ __('aml.wallet_graph') }}</h2>
+        <p class="muted">{{ __('aml.wallet_graph_hint') }}</p>
+        @if (! empty($walletGraphPending))
+            <p class="muted">{{ __('aml.graph_pending') }}</p>
+        @endif
+        @if (! empty($walletGraphSvg))
+            <div>{!! $walletGraphSvg !!}</div>
+            <p class="muted">
+                {{ __('aml.graph_kind_eoa') }} ·
+                {{ __('aml.graph_kind_contract') }} ·
+                {{ __('aml.graph_kind_token') }} ·
+                {{ __('aml.graph_kind_spam') }} ·
+                {{ __('aml.graph_kind_unknown') }}
+            </p>
+            @if (! empty($walletGraph['truncated']))
+                <p class="muted">{{ __('aml.graph_truncated') }}</p>
+            @endif
+        @endif
+
         <h2>{{ __('aml.inflows') }}</h2>
         <p class="muted">{{ __('aml.inflow_hint') }}</p>
         @if (! empty($inflowBars) && collect($inflowBars)->sum('value') > 0)
