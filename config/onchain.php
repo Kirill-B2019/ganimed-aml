@@ -4,6 +4,7 @@
 return [
     'trongrid_base_url' => env('TRONGRID_BASE_URL', 'https://api.trongrid.io'),
     'trongrid_api_key' => trim((string) env('TRONGRID_API_KEY')),
+    'tronscan_base_url' => env('TRONSCAN_BASE_URL', 'https://apilist.tronscanapi.com'),
     'timeout' => (int) env('ONCHAIN_TIMEOUT', 20),
     'min_interval_ms' => (int) env('ONCHAIN_MIN_INTERVAL_MS', 1300),
     'retry_attempts' => (int) env('ONCHAIN_RETRY_ATTEMPTS', 3),

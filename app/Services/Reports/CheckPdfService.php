@@ -3,6 +3,7 @@
 // | KB @CerberRus00 - Nexus Invest Team
 namespace App\Services\Reports;
 
+use App\Enums\CheckType;
 use App\Models\Check;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Response;
@@ -18,7 +19,7 @@ class CheckPdfService
     public function download(Check $check, string $variant = self::VARIANT_FULL): Response
     {
         $check->loadMissing('user', 'previousCheck');
-        $variant = $this->normalize($variant);
+        $variant = $this->normalize($variant, $check);
 
         $pdf = Pdf::loadHTML($this->html($check, $variant))
             ->setPaper('a4')
@@ -35,7 +36,7 @@ class CheckPdfService
             $subject = 'check-'.$check->id;
         }
 
-        return $subject.'_'.now()->format('Y-m-d_H-i-s').'_'.$this->normalize($variant).'.pdf';
+        return $subject.'_'.now()->format('Y-m-d_H-i-s').'_'.$this->normalize($variant, $check).'.pdf';
     }
 
     public function html(Check $check, string $variant = self::VARIANT_FULL): string
@@ -43,7 +44,7 @@ class CheckPdfService
         $locale = $this->activeLocale();
         $previous = app()->getLocale();
         app()->setLocale($locale);
-        $variant = $this->normalize($variant);
+        $variant = $this->normalize($variant, $check);
 
         try {
             return view('reports.check', $this->presenter->data(
@@ -56,8 +57,12 @@ class CheckPdfService
         }
     }
 
-    public function normalize(string $variant): string
+    public function normalize(string $variant, ?Check $check = null): string
     {
+        if ($check?->type === CheckType::Token) {
+            return self::VARIANT_FILE;
+        }
+
         return $variant === self::VARIANT_FILE ? self::VARIANT_FILE : self::VARIANT_FULL;
     }
 

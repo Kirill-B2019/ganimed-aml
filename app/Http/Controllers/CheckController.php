@@ -156,7 +156,7 @@ class CheckController extends Controller
         $this->authorizeCheck($request, $check);
         abort_unless($check->status === CheckStatus::Completed, 409, __('aml.pdf_not_ready'));
         $enrichment->fill($check);
-        $variant = $pdf->normalize((string) $request->query('variant', CheckPdfService::VARIANT_FULL));
+        $variant = $pdf->normalize((string) $request->query('variant', CheckPdfService::VARIANT_FULL), $check);
         $logger->record($request->user(), 'pdf', $check, ['variant' => $variant]);
 
         return $pdf->download($check, $variant);

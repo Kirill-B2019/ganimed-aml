@@ -57,8 +57,9 @@ class CheckReportPresenter
     public function data(Check $check, bool $pdf = false, bool $compact = false): array
     {
         $onchain = is_array($check->enrichment) ? $check->enrichment : [];
-        $hasOnchain = $onchain !== [] && empty($onchain['skipped']) && empty($onchain['error']);
         $isWalletReport = in_array($check->type, [CheckType::Address, CheckType::Scan], true);
+        $isTokenReport = $check->type === CheckType::Token;
+        $hasOnchain = $isWalletReport && $onchain !== [] && empty($onchain['skipped']) && empty($onchain['error']);
         $usdSummary = $isWalletReport ? $this->usd->summarize($check) : null;
         $radarAxes = $isWalletReport ? $this->radar->axes($check) : [];
         $tokenPieSlices = $isWalletReport ? $this->withShares($this->pie->slices($check)) : [];
@@ -84,10 +85,11 @@ class CheckReportPresenter
             'brand' => 'GANIMED AML',
             'logoMark' => public_path('images/logo-gnd-mark.png'),
             'reportTitle' => $this->reportTitle($check),
-            'sources' => $isWalletReport ? 'GoPlus · TronGrid' : 'GoPlus',
+            'sources' => $this->sourcesLabel($check),
             'isWalletReport' => $isWalletReport,
             'showRadar' => $isWalletReport,
             'showOnchain' => $isWalletReport && $hasOnchain,
+            'showTokenOnchain' => $isTokenReport,
             'radarAxes' => $radarAxes,
             'hotRadarAxes' => $hotRadar,
             'quietRadarCount' => $quietRadarCount,
@@ -107,6 +109,10 @@ class CheckReportPresenter
             'canOverrideVerdict' => $check->canOverrideVerdict(),
             'overrideNote' => is_string($check->overridePayload()['note'] ?? null) ? $check->overridePayload()['note'] : '',
             'objectRows' => $this->objectRows($check, $isWalletReport && $hasOnchain, $onchain, $usdSummary),
+            'tokenPassport' => $isTokenReport ? $this->tokenPassport($check) : [],
+            'tronscanContract' => $isTokenReport ? $this->tronscanContract($onchain) : [],
+            'tokenTronscanError' => $isTokenReport ? (string) ($onchain['error'] ?? '') : '',
+            'tokenTronscanSkipped' => $isTokenReport && ! empty($onchain['skipped']),
             'balanceRows' => $balanceRows,
             'inflowRows' => $inflowRows,
             'outflowRows' => $outflowRows,
@@ -162,6 +168,22 @@ class CheckReportPresenter
                 'label' => $needsReview ? __('aml.pill_onchain_review') : __('aml.pill_onchain_ok'),
                 'tone' => $needsReview ? 'warning' : 'success',
             ];
+        }
+
+        if ($check->type === CheckType::Token && $this->isCanonicalUsdt($check->subject)) {
+            $pills[] = ['label' => __('aml.pill_canonical_usdt'), 'tone' => 'success'];
+        }
+
+        $tronscan = is_array($onchain['contract'] ?? null) ? $onchain['contract'] : [];
+        if ($check->type === CheckType::Token && $tronscan !== [] && empty($onchain['error']) && empty($onchain['skipped'])) {
+            $verified = ! empty($tronscan['verified']);
+            $pills[] = [
+                'label' => $verified ? __('aml.pill_tronscan_verified') : __('aml.pill_tronscan_unverified'),
+                'tone' => $verified ? 'success' : 'neutral',
+            ];
+            if (! empty($tronscan['vip'])) {
+                $pills[] = ['label' => __('aml.tronscan_vip'), 'tone' => 'success'];
+            }
         }
 
         if ($check->verdictIsLocked()) {
@@ -621,7 +643,10 @@ class CheckReportPresenter
             : $check->type->label();
 
         $subjectRow = ['label' => __('aml.subject'), 'value' => $check->subject];
-        if ($explorerUrl = TronAddress::explorerUrl($check->subject)) {
+        $explorerUrl = $check->type === CheckType::Token
+            ? (TronAddress::contractUrl($check->subject) ?? TronAddress::explorerUrl($check->subject))
+            : TronAddress::explorerUrl($check->subject);
+        if ($explorerUrl) {
             $subjectRow['href'] = $explorerUrl;
         }
 
@@ -657,9 +682,134 @@ class CheckReportPresenter
 
     private function sourcesLabel(Check $check): string
     {
-        return in_array($check->type, [CheckType::Address, CheckType::Scan], true)
-            ? 'GoPlus · TronGrid'
-            : 'GoPlus';
+        return match ($check->type) {
+            CheckType::Address, CheckType::Scan => 'GoPlus · TronGrid',
+            CheckType::Token => 'GoPlus · Tronscan',
+            default => 'GoPlus',
+        };
+    }
+
+    /**
+     * @return list<array{label: string, value: string, href?: string|null}>
+     */
+    private function tokenPassport(Check $check): array
+    {
+        $token = $this->firstTokenPayload(is_array($check->raw_response) ? $check->raw_response : []);
+        if ($token === []) {
+            return [];
+        }
+
+        $yesNo = function (mixed $value): string {
+            if ($value === 1 || $value === '1' || $value === true) {
+                return __('aml.token_yes');
+            }
+            if ($value === 0 || $value === '0' || $value === false) {
+                return __('aml.token_no');
+            }
+
+            return '—';
+        };
+
+        $owner = (string) ($token['owner_address'] ?? '');
+        $creator = (string) ($token['creator_address'] ?? '');
+        $rows = [
+            ['label' => __('aml.token_field_name'), 'value' => (string) ($token['token_name'] ?? $token['name'] ?? '—')],
+            ['label' => __('aml.token_field_symbol'), 'value' => (string) ($token['token_symbol'] ?? $token['symbol'] ?? '—')],
+            ['label' => __('aml.token_field_supply'), 'value' => (string) ($token['total_supply'] ?? '—')],
+            ['label' => __('aml.token_field_holders'), 'value' => (string) ($token['holder_count'] ?? '—')],
+            [
+                'label' => __('aml.token_field_owner'),
+                'value' => $owner !== '' ? $owner : '—',
+                'href' => $owner !== '' ? TronAddress::explorerUrl($owner) : null,
+            ],
+            [
+                'label' => __('aml.token_field_creator'),
+                'value' => $creator !== '' ? $creator : '—',
+                'href' => $creator !== '' ? TronAddress::explorerUrl($creator) : null,
+            ],
+            ['label' => __('aml.token_field_buy_tax'), 'value' => isset($token['buy_tax']) ? (string) $token['buy_tax'] : '—'],
+            ['label' => __('aml.token_field_sell_tax'), 'value' => isset($token['sell_tax']) ? (string) $token['sell_tax'] : '—'],
+            ['label' => __('aml.token_field_open_source'), 'value' => $yesNo($token['is_open_source'] ?? null)],
+            ['label' => __('aml.token_field_in_dex'), 'value' => $yesNo($token['is_in_dex'] ?? null)],
+            ['label' => __('aml.token_field_proxy'), 'value' => $yesNo($token['is_proxy'] ?? null)],
+            ['label' => __('aml.token_field_mintable'), 'value' => $yesNo($token['is_mintable'] ?? null)],
+        ];
+
+        $contractUrl = TronAddress::contractUrl($check->subject);
+        $tokenUrl = TronAddress::tokenUrl($check->subject);
+        if ($contractUrl) {
+            $rows[] = ['label' => __('aml.token_link_contract'), 'value' => $check->subject, 'href' => $contractUrl];
+        }
+        if ($tokenUrl) {
+            $rows[] = ['label' => __('aml.token_link_token'), 'value' => $check->subject, 'href' => $tokenUrl];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $onchain
+     * @return list<array{label: string, value: string, href?: string|null, tone?: string}>
+     */
+    private function tronscanContract(array $onchain): array
+    {
+        $contract = is_array($onchain['contract'] ?? null) ? $onchain['contract'] : [];
+        if ($contract === [] || ! empty($onchain['error']) || ! empty($onchain['skipped'])) {
+            return [];
+        }
+
+        $verified = ! empty($contract['verified']);
+        $creator = (string) ($contract['creator'] ?? '');
+        $created = (string) ($contract['created_at'] ?? '');
+        $rows = [
+            [
+                'label' => __('aml.tronscan_status'),
+                'value' => $verified ? __('aml.tronscan_verified') : __('aml.tronscan_unverified'),
+                'tone' => $verified ? 'success' : 'neutral',
+            ],
+            ['label' => __('aml.tronscan_name'), 'value' => (string) (($contract['name'] ?? '') !== '' ? $contract['name'] : '—')],
+        ];
+        if (($contract['tag'] ?? '') !== '') {
+            $rows[] = ['label' => __('aml.tronscan_tag'), 'value' => (string) $contract['tag']];
+        }
+        if (! empty($contract['vip'])) {
+            $rows[] = ['label' => __('aml.tronscan_vip'), 'value' => __('aml.token_yes')];
+        }
+        $rows[] = [
+            'label' => __('aml.tronscan_creator'),
+            'value' => $creator !== '' ? $creator : '—',
+            'href' => $creator !== '' ? TronAddress::explorerUrl($creator) : null,
+        ];
+        $rows[] = [
+            'label' => __('aml.tronscan_created'),
+            'value' => MskTime::format($created) ?? '—',
+        ];
+        $rows[] = [
+            'label' => __('aml.tronscan_calls'),
+            'value' => (string) ($contract['trx_count'] ?? 0),
+        ];
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private function firstTokenPayload(array $result): array
+    {
+        if ($result === []) {
+            return [];
+        }
+
+        $first = reset($result);
+
+        return is_array($first) ? $first : $result;
+    }
+
+    private function isCanonicalUsdt(string $subject): bool
+    {
+        return $subject === 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
     }
 
     /**

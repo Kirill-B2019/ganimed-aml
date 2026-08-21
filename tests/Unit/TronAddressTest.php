@@ -24,7 +24,15 @@ class TronAddressTest extends TestCase
             'https://tronscan.org/#/address/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
             TronAddress::explorerUrl('4140497af024c1d8ca00848de32d1d3dc4ef652598'),
         );
-        $this->assertNull(TronAddress::explorerUrl('0x408e41876cccdc0f92210600ef50372656052a38'));
+        $this->assertSame(
+            'https://tronscan.org/#/contract/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            TronAddress::contractUrl('TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk'),
+        );
+        $this->assertSame(
+            'https://tronscan.org/#/token20/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            TronAddress::tokenUrl('TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk'),
+        );
+        $this->assertNull(TronAddress::contractUrl('0x408e41876cccdc0f92210600ef50372656052a38'));
     }
 
     public function test_converts_hex_to_base58(): void

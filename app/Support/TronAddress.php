@@ -14,6 +14,36 @@ class TronAddress
 
     public static function explorerUrl(string $address): ?string
     {
+        $address = self::normalized($address);
+        if ($address === null) {
+            return null;
+        }
+
+        return 'https://tronscan.org/#/address/'.$address;
+    }
+
+    public static function contractUrl(string $address): ?string
+    {
+        $address = self::normalized($address);
+        if ($address === null) {
+            return null;
+        }
+
+        return 'https://tronscan.org/#/contract/'.$address;
+    }
+
+    public static function tokenUrl(string $address): ?string
+    {
+        $address = self::normalized($address);
+        if ($address === null) {
+            return null;
+        }
+
+        return 'https://tronscan.org/#/token20/'.$address;
+    }
+
+    private static function normalized(string $address): ?string
+    {
         $address = trim($address);
         if ($address === '' || strcasecmp($address, 'unknown') === 0) {
             return null;
@@ -28,7 +58,7 @@ class TronAddress
             return null;
         }
 
-        return 'https://tronscan.org/#/address/'.$address;
+        return $address;
     }
 
     public static function short(string $address): string

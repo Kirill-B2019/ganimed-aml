@@ -27,7 +27,9 @@
                     @if ($check->isCompleted())
                         <x-verdict-badge :verdict="$check->verdict" />
                         <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'file'])">{{ __('aml.pdf_file') }}</x-secondary-button>
-                        <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'full'])">{{ __('aml.pdf_full') }}</x-secondary-button>
+                        @if ($check->type !== \App\Enums\CheckType::Token)
+                            <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'full'])">{{ __('aml.pdf_full') }}</x-secondary-button>
+                        @endif
                         <form method="POST" action="{{ route('checks.rerun', $check) }}" class="shrink-0">
                             @csrf
                             <x-primary-button>{{ __('aml.rerun') }}</x-primary-button>
@@ -259,6 +261,55 @@
                     </tbody>
                 </table>
             </x-report-section>
+
+            @if ($showTokenOnchain ?? false)
+                <x-report-section :title="__('aml.tronscan_contract')" :hint="__('aml.tronscan_contract_hint')">
+                    @if ($tokenTronscanError ?? '')
+                        <p class="text-sm text-rose-700">{{ __('aml.tronscan_error') }}: {{ $tokenTronscanError }}</p>
+                    @elseif ($tokenTronscanSkipped ?? false)
+                        <p class="text-sm text-ink-muted">{{ __('aml.tronscan_unavailable') }}</p>
+                    @elseif (empty($tronscanContract))
+                        <p class="text-sm text-ink-muted">{{ __('aml.tronscan_unavailable') }}</p>
+                    @else
+                        <table class="w-full text-sm">
+                            <tbody>
+                                @foreach ($tronscanContract as $i => $row)
+                                    <tr class="border-t border-ink-line {{ $i % 2 === 1 ? 'bg-ink-paper' : '' }}">
+                                        <td class="py-2 pr-4 text-ink-muted align-top whitespace-nowrap">{{ $row['label'] }}</td>
+                                        <td class="py-2 font-mono text-[13px] text-ink break-all">
+                                            @if (! empty($row['href']))
+                                                <a class="ui-link" href="{{ $row['href'] }}" target="_blank" rel="noopener noreferrer">{{ $row['value'] }}</a>
+                                            @else
+                                                {{ $row['value'] }}
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </x-report-section>
+                @if (! empty($tokenPassport))
+                    <x-report-section :title="__('aml.token_passport')" :hint="__('aml.token_passport_hint')">
+                        <table class="w-full text-sm">
+                            <tbody>
+                                @foreach ($tokenPassport as $i => $row)
+                                    <tr class="border-t border-ink-line {{ $i % 2 === 1 ? 'bg-ink-paper' : '' }}">
+                                        <td class="py-2 pr-4 text-ink-muted align-top whitespace-nowrap">{{ $row['label'] }}</td>
+                                        <td class="py-2 font-mono text-[13px] text-ink break-all">
+                                            @if (! empty($row['href']))
+                                                <a class="ui-link" href="{{ $row['href'] }}" target="_blank" rel="noopener noreferrer">{{ $row['value'] }}</a>
+                                            @else
+                                                {{ $row['value'] }}
+                                            @endif
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </x-report-section>
+                @endif
+            @endif
 
             @if ($check->isPending())
                 <div class="ui-alert ui-alert-info">{{ __('aml.waiting_scan') }}</div>

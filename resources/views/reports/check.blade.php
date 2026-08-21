@@ -182,6 +182,61 @@
         </tbody>
     </table>
 
+    @if ($showTokenOnchain ?? false)
+        <h2>{{ __('aml.tronscan_contract') }}</h2>
+        <p class="muted">{{ __('aml.tronscan_contract_hint') }}</p>
+        @if ($tokenTronscanError ?? '')
+            <p class="muted">{{ __('aml.tronscan_error') }}: {{ $tokenTronscanError }}</p>
+        @elseif (($tokenTronscanSkipped ?? false) || empty($tronscanContract))
+            <p class="muted">{{ __('aml.tronscan_unavailable') }}</p>
+        @else
+        <table class="sheet">
+            <colgroup>
+                <col style="width: 28%">
+                <col style="width: 72%">
+            </colgroup>
+            <tbody>
+                @foreach ($tronscanContract as $i => $row)
+                    <tr class="{{ $i % 2 === 1 ? 'row-stripe' : '' }}">
+                        <td>{{ $row['label'] }}</td>
+                        <td class="mono">
+                            @if (! empty($row['href']))
+                                <a href="{{ $row['href'] }}">{{ $row['value'] }}</a>
+                            @else
+                                {{ $row['value'] }}
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+        @endif
+        @if (! empty($tokenPassport))
+            <h2>{{ __('aml.token_passport') }}</h2>
+            <p class="muted">{{ __('aml.token_passport_hint') }}</p>
+            <table class="sheet">
+                <colgroup>
+                    <col style="width: 28%">
+                    <col style="width: 72%">
+                </colgroup>
+                <tbody>
+                    @foreach ($tokenPassport as $i => $row)
+                        <tr class="{{ $i % 2 === 1 ? 'row-stripe' : '' }}">
+                            <td>{{ $row['label'] }}</td>
+                            <td class="mono">
+                                @if (! empty($row['href']))
+                                    <a href="{{ $row['href'] }}">{{ $row['value'] }}</a>
+                                @else
+                                    {{ $row['value'] }}
+                                @endif
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+    @endif
+
     @if ($showRadar && ! empty($hotRadarAxes) && empty($compact))
         <h2>{{ __('aml.radar_title') }}</h2>
         <p class="muted">{{ __('aml.radar_hint') }}</p>

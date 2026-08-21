@@ -21,11 +21,16 @@ class OnchainEnrichmentService
 
     public function __construct(
         private TronGridClient $tron,
+        private TronscanClient $tronscan,
         private AssetNarrativeService $narrative,
     ) {}
 
     public function fill(Check $check): Check
     {
+        if ($check->type === CheckType::Token) {
+            return $this->fillToken($check);
+        }
+
         if (! in_array($check->type, [CheckType::Address, CheckType::Scan], true)) {
             return $check;
         }
@@ -51,6 +56,49 @@ class OnchainEnrichmentService
         $this->queueGraphExpansion($check);
 
         return $this->promoteOnchainReview($check->refresh());
+    }
+
+    private function fillToken(Check $check): Check
+    {
+        if (! TronAddress::isTron($check->subject)) {
+            if ($this->shouldRefetch(is_array($check->enrichment) ? $check->enrichment : null)) {
+                $check->update([
+                    'enrichment' => [
+                        'source' => 'tronscan',
+                        'skipped' => true,
+                        'reason' => 'not_tron',
+                        'fetched_at' => now()->toIso8601String(),
+                    ],
+                ]);
+            }
+
+            return $check->refresh();
+        }
+
+        if (! $this->shouldRefetch(is_array($check->enrichment) ? $check->enrichment : null)) {
+            return $check;
+        }
+
+        try {
+            $contract = $this->tronscan->contract($check->subject);
+            $check->update([
+                'enrichment' => [
+                    'source' => 'tronscan',
+                    'fetched_at' => now()->toIso8601String(),
+                    'contract' => $contract,
+                ],
+            ]);
+        } catch (Throwable $e) {
+            $check->update([
+                'enrichment' => [
+                    'source' => 'tronscan',
+                    'error' => $e->getMessage(),
+                    'fetched_at' => now()->toIso8601String(),
+                ],
+            ]);
+        }
+
+        return $check->refresh();
     }
 
     /**
@@ -185,11 +233,16 @@ class OnchainEnrichmentService
 
     public function needsFetch(Check $check): bool
     {
+        $enrichment = is_array($check->enrichment) ? $check->enrichment : null;
+
+        if ($check->type === CheckType::Token) {
+            return TronAddress::isTron($check->subject)
+                && ($enrichment === null || $enrichment === []);
+        }
+
         if (! in_array($check->type, [CheckType::Address, CheckType::Scan], true)) {
             return false;
         }
-
-        $enrichment = is_array($check->enrichment) ? $check->enrichment : null;
 
         return $enrichment === null || $enrichment === [];
     }

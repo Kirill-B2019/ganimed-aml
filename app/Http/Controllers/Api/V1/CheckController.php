@@ -44,7 +44,7 @@ class CheckController extends Controller
         abort_unless($check->status === CheckStatus::Completed, 409);
         $enrichment->fill($check);
 
-        return $pdf->download($check, $pdf->normalize((string) $request->query('variant', CheckPdfService::VARIANT_FULL)));
+        return $pdf->download($check, $pdf->normalize((string) $request->query('variant', CheckPdfService::VARIANT_FULL), $check));
     }
 
     public function address(StoreAddressCheckRequest $request, ScreeningService $screening)

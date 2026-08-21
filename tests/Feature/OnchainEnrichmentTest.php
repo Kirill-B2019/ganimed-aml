@@ -93,6 +93,7 @@ class OnchainEnrichmentTest extends TestCase
         ));
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ')
             && ! str_contains($request->url(), 'transactions'));
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), 'tronscanapi.com'));
     }
 
     public function test_evm_address_is_skipped(): void

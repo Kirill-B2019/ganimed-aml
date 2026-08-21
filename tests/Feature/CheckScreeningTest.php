@@ -485,6 +485,8 @@ class CheckScreeningTest extends TestCase
 
         $this->assertFalse($data['showRadar']);
         $this->assertFalse($data['showOnchain']);
+        $this->assertTrue($data['showTokenOnchain']);
+        $this->assertSame('GoPlus · Tronscan', $data['sources']);
         $this->assertNull($data['usdSummary']);
         $this->assertSame(__('aml.report_title_token'), $data['reportTitle']);
         $this->assertSame(__('aml.reading_token'), $data['readingNote']);
