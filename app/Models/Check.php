@@ -10,6 +10,7 @@ use Database\Factories\CheckFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Check extends Model
 {
@@ -18,6 +19,8 @@ class Check extends Model
 
     protected $fillable = [
         'user_id',
+        'previous_check_id',
+        'case_id',
         'type',
         'subject',
         'chain_id',
@@ -50,6 +53,21 @@ class Check extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function previousCheck(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'previous_check_id');
+    }
+
+    public function screeningCase(): BelongsTo
+    {
+        return $this->belongsTo(ScreeningCase::class, 'case_id');
+    }
+
+    public function activityLogs(): HasMany
+    {
+        return $this->hasMany(ActivityLog::class);
     }
 
     public function chainName(): ?string
@@ -104,5 +122,14 @@ class Check extends Model
     public function verdictIsLocked(): bool
     {
         return (bool) ($this->overridePayload()['verdict_locked'] ?? false);
+    }
+
+    public static function verdictRank(?CheckVerdict $verdict): int
+    {
+        return match ($verdict) {
+            CheckVerdict::Block => 2,
+            CheckVerdict::Review => 1,
+            default => 0,
+        };
     }
 }

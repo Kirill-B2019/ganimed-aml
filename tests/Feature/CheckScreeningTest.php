@@ -156,7 +156,224 @@ class CheckScreeningTest extends TestCase
             ->get(route('checks.create'))
             ->assertOk()
             ->assertSee(__('aml.tab_hint_address'), false)
-            ->assertSee(__('aml.address_placeholder'), false);
+            ->assertSee(__('aml.address_placeholder'), false)
+            ->assertSee('data-processing', false)
+            ->assertSee(__('aml.processing_title'), false)
+            ->assertSee(__('aml.deep_window'), false)
+            ->assertDontSee(__('aml.tab_scan'), false);
+    }
+
+    public function test_report_puts_conclusion_before_flags(): void
+    {
+        $user = User::factory()->create();
+        $check = Check::factory()->create([
+            'user_id' => $user->id,
+            'status' => CheckStatus::Completed,
+            'verdict' => CheckVerdict::Review,
+            'risk_score' => 20,
+            'raw_response' => [
+                'sanctioned' => '0',
+                'mixer' => '1',
+                'contract_address' => '0',
+            ],
+            'flags' => [['key' => 'mixer', 'value' => '1', 'severity' => 'review']],
+            'enrichment' => ['skipped' => true],
+        ]);
+
+        $html = $this->actingAs($user)->get(route('checks.show', $check))->assertOk()->getContent();
+        $conclusion = strpos($html, __('aml.conclusion_title'));
+        $why = strpos($html, __('aml.why_title'));
+        $this->assertNotFalse($conclusion);
+        $this->assertNotFalse($why);
+        $this->assertLessThan($why, $conclusion);
+        $this->assertStringContainsString('mixer', $html);
+    }
+
+    public function test_dashboard_latest_respects_date_filter(): void
+    {
+        $user = User::factory()->create();
+        Check::factory()->create([
+            'user_id' => $user->id,
+            'subject' => 'Toldwallet000000000000000000000000001',
+            'verdict' => CheckVerdict::Review,
+            'status' => CheckStatus::Completed,
+            'created_at' => now()->subDays(40),
+        ]);
+        Check::factory()->create([
+            'user_id' => $user->id,
+            'subject' => 'Tnewwallet000000000000000000000000001',
+            'verdict' => CheckVerdict::Review,
+            'status' => CheckStatus::Completed,
+            'created_at' => now(),
+        ]);
+
+        $this->actingAs($user)
+            ->get('/dashboard?from='.now()->toDateString().'&to='.now()->toDateString())
+            ->assertOk()
+            ->assertSee('Tnewwallet')
+            ->assertDontSee('Toldwallet')
+            ->assertSee(__('aml.queue_review'), false);
+    }
+
+    public function test_pdf_file_variant_is_compact(): void
+    {
+        Carbon::setTestNow('2026-08-21 09:33:15');
+        $user = User::factory()->create();
+        $check = Check::factory()->create([
+            'user_id' => $user->id,
+            'subject' => 'TU72cTvdkWvoB7xgN5TXFtoXtUuWRuvUTm',
+            'status' => CheckStatus::Completed,
+            'verdict' => CheckVerdict::Clear,
+            'enrichment' => ['skipped' => true],
+        ]);
+
+        $pdf = app(\App\Services\Reports\CheckPdfService::class);
+        $file = $pdf->html($check, 'file');
+        $full = $pdf->html($check, 'full');
+        $this->assertStringContainsString(__('aml.conclusion_title'), $file);
+        $this->assertStringContainsString(__('aml.why_title'), $file);
+        $this->assertStringNotContainsString(__('aml.score_title'), $file);
+        $this->assertStringContainsString(__('aml.score_title'), $full);
+
+        $this->actingAs($user)
+            ->get(route('checks.pdf', [$check, 'variant' => 'file']))
+            ->assertOk()
+            ->assertDownload('TU72cTvdkWvoB7xgN5TXFtoXtUuWRuvUTm_2026-08-21_09-33-15_file.pdf');
+    }
+
+    public function test_rerun_writes_previous_check_and_delta(): void
+    {
+        $this->fakeGoPlus();
+        $user = User::factory()->create();
+        $check = Check::factory()->create([
+            'user_id' => $user->id,
+            'type' => CheckType::Address,
+            'subject' => '0x408e41876cccdc0f92210600ef50372656052a38',
+            'chain_id' => 'tron',
+            'status' => CheckStatus::Completed,
+            'verdict' => CheckVerdict::Clear,
+            'risk_score' => 0,
+        ]);
+
+        $this->actingAs($user)->post(route('checks.rerun', $check))->assertRedirect();
+        $fresh = Check::query()->where('previous_check_id', $check->id)->first();
+        $this->assertNotNull($fresh);
+        $this->assertSame(CheckVerdict::Block, $fresh->verdict);
+
+        $this->actingAs($user)
+            ->get(route('checks.show', $fresh))
+            ->assertOk()
+            ->assertSee(__('aml.delta_title'), false);
+    }
+
+    public function test_history_csv_export_uses_filters(): void
+    {
+        $user = User::factory()->create(['name' => 'Analyst One']);
+        Check::factory()->create([
+            'user_id' => $user->id,
+            'subject' => 'Texportme000000000000000000000000001',
+            'verdict' => CheckVerdict::Clear,
+            'status' => CheckStatus::Completed,
+        ]);
+        Check::factory()->create([
+            'user_id' => $user->id,
+            'subject' => 'Thideexport0000000000000000000000001',
+            'verdict' => CheckVerdict::Block,
+            'status' => CheckStatus::Completed,
+        ]);
+
+        $csv = $this->actingAs($user)
+            ->get('/checks/export?verdict=clear')
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('Texportme', $csv);
+        $this->assertStringContainsString('Analyst One', $csv);
+        $this->assertStringNotContainsString('Thideexport', $csv);
+    }
+
+    public function test_verdict_change_is_written_to_activity_log(): void
+    {
+        $user = User::factory()->create();
+        $check = Check::factory()->create([
+            'user_id' => $user->id,
+            'status' => CheckStatus::Completed,
+            'verdict' => CheckVerdict::Review,
+            'risk_score' => 20,
+            'flags' => [['key' => 'mixer', 'value' => '1', 'severity' => 'review']],
+            'raw_response' => ['mixer' => '1'],
+        ]);
+
+        $this->actingAs($user)
+            ->patch(route('checks.verdict', $check), [
+                'verdict' => 'block',
+                'note' => 'file',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('activity_logs', [
+            'check_id' => $check->id,
+            'action' => 'verdict',
+        ]);
+    }
+
+    public function test_admin_users_page_renders_and_created_user_can_log_in(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->get(route('users.index'))
+            ->assertOk()
+            ->assertSee(__('aml.create_user'), false);
+
+        $this->actingAs($admin)
+            ->post(route('users.store'), [
+                'name' => 'Analyst',
+                'email' => 'analyst@localhost',
+                'password' => 'Password123!',
+                'password_confirmation' => 'Password123!',
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('users', [
+            'email' => 'analyst@localhost',
+            'is_admin' => 0,
+        ]);
+
+        $this->post('/logout');
+
+        $this->post('/login', [
+            'email' => 'analyst@localhost',
+            'password' => 'Password123!',
+        ])->assertRedirect(route('dashboard'));
+    }
+
+    public function test_non_admin_cannot_open_users(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)
+            ->get(route('users.index'))
+            ->assertForbidden();
+    }
+
+    public function test_pending_report_shows_processing_waiter(): void
+    {
+        $user = User::factory()->create();
+        $check = Check::factory()->create([
+            'user_id' => $user->id,
+            'type' => CheckType::Scan,
+            'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'status' => CheckStatus::Pending,
+            'verdict' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('checks.show', $check))
+            ->assertOk()
+            ->assertSee('checkWaiter', false)
+            ->assertSee(__('aml.processing_scan'), false)
+            ->assertSee('processing-overlay', false);
     }
 
     public function test_pdf_is_available_for_completed_check(): void
@@ -175,7 +392,7 @@ class CheckScreeningTest extends TestCase
             ->get(route('checks.pdf', $check))
             ->assertOk()
             ->assertHeader('content-type', 'application/pdf')
-            ->assertDownload('TU72cTvdkWvoB7xgN5TXFtoXtUuWRuvUTm_2026-08-21_09-33-15.pdf');
+            ->assertDownload('TU72cTvdkWvoB7xgN5TXFtoXtUuWRuvUTm_2026-08-21_09-33-15_full.pdf');
     }
 
     public function test_pdf_follows_active_ui_language_not_check_locale(): void

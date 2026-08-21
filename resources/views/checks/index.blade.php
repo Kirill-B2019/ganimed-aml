@@ -6,6 +6,10 @@
 
     <div class="py-8">
         <div class="page space-y-6">
+            @if (session('status'))
+                <div class="ui-alert ui-alert-success">{{ session('status') }}</div>
+            @endif
+
             <form class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 items-end" method="GET" aria-label="{{ __('aml.filters') }}">
                 <div class="sm:col-span-2">
                     <x-input-label for="q" :value="__('aml.search')" />
@@ -49,6 +53,7 @@
                 <div class="flex gap-2 sm:col-span-2 lg:col-span-4">
                     <x-primary-button>{{ __('aml.filter') }}</x-primary-button>
                     <x-secondary-button :href="route('checks.index')">{{ __('aml.reset_filters') }}</x-secondary-button>
+                    <x-secondary-button :href="route('checks.export', request()->query())">{{ __('aml.export_csv') }}</x-secondary-button>
                 </div>
             </form>
 
@@ -61,7 +66,9 @@
                             <th>{{ __('aml.status') }}</th>
                             <th>{{ __('aml.verdict') }}</th>
                             <th>{{ __('aml.score') }}</th>
+                            <th>{{ __('aml.operator') }}</th>
                             <th>{{ __('aml.created') }}</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -74,11 +81,20 @@
                                 <td>{{ $check->status->label() }}</td>
                                 <td><x-verdict-badge :verdict="$check->verdict" /></td>
                                 <td class="font-mono text-ink-muted tabular-nums">{{ $check->risk_score ?? '—' }}</td>
-                                <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at }}</td>
+                                <td class="text-ink-muted">{{ $check->user?->name ?? '—' }}</td>
+                                <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at?->format('d.m.Y H:i') }}</td>
+                                <td>
+                                    @if ($check->isCompleted())
+                                        <form method="POST" action="{{ route('checks.rerun', $check) }}">
+                                            @csrf
+                                            <button type="submit" class="text-sm ui-link">{{ __('aml.rerun') }}</button>
+                                        </form>
+                                    @endif
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="py-10 text-center">
+                                <td colspan="8" class="py-10 text-center">
                                     <p class="text-ink-muted">{{ __('aml.no_checks') }}</p>
                                     <a href="{{ route('checks.create') }}" class="mt-3 inline-flex items-center px-4 py-2 bg-ink text-sm font-medium text-white hover:bg-ink-soft">{{ __('aml.start_first') }}</a>
                                 </td>

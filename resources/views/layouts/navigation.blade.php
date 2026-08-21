@@ -12,8 +12,14 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('aml.dashboard') }}
                     </x-nav-link>
-                    <x-nav-link :href="route('checks.index')" :active="request()->routeIs('checks.index')">
+                    <x-nav-link :href="route('checks.index')" :active="request()->routeIs('checks.index', 'checks.export')">
                         {{ __('aml.history') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('cases.index')" :active="request()->routeIs('cases.*')">
+                        {{ __('aml.cases') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('watch.index')" :active="request()->routeIs('watch.*')">
+                        {{ __('aml.watchlist') }}
                     </x-nav-link>
                     <x-nav-link :href="route('tokens.index')" :active="request()->routeIs('tokens.*')">
                         {{ __('aml.api') }}
@@ -45,6 +51,7 @@
                     </x-slot>
                     <x-slot name="content">
                         <x-dropdown-link :href="route('profile.edit')">{{ __('aml.profile') }}</x-dropdown-link>
+                        <x-dropdown-link :href="route('activity.index')">{{ __('aml.activity') }}</x-dropdown-link>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
                             <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();">
@@ -72,6 +79,9 @@
         <div class="py-2">
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">{{ __('aml.dashboard') }}</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('checks.index')" :active="request()->routeIs('checks.index')">{{ __('aml.history') }}</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('cases.index')" :active="request()->routeIs('cases.*')">{{ __('aml.cases') }}</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('watch.index')" :active="request()->routeIs('watch.*')">{{ __('aml.watchlist') }}</x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('activity.index')" :active="request()->routeIs('activity.*')">{{ __('aml.activity') }}</x-responsive-nav-link>
             <x-responsive-nav-link :href="route('tokens.index')" :active="request()->routeIs('tokens.*')">{{ __('aml.api') }}</x-responsive-nav-link>
             @if (auth()->user()->is_admin)
                 <x-responsive-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">{{ __('aml.users') }}</x-responsive-nav-link>

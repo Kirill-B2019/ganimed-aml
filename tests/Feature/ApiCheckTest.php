@@ -46,7 +46,8 @@ class ApiCheckTest extends TestCase
             ->assertOk()
             ->assertSee('API documentation', false)
             ->assertSee('POST', false)
-            ->assertSee('/checks/{id}/pdf', false);
+            ->assertSee('/checks/{id}/pdf', false)
+            ->assertSee('/checks/batch', false);
     }
 
     public function test_api_can_create_address_check(): void
@@ -173,5 +174,99 @@ class ApiCheckTest extends TestCase
         $this->assertSame('address_security_fallback', $check->raw_response['scan_mode'] ?? null);
         Http::assertNotSent(fn ($request) => str_contains($request->url(), '/api/v1/address/scan/'));
         Http::assertNotSent(fn ($request) => str_contains($request->url(), '/api/v1/token'));
+    }
+
+    public function test_api_batch_queues_addresses(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $user = User::factory()->create();
+        $token = $user->createToken('tests')->plainTextToken;
+
+        $this->withToken($token)
+            ->postJson('/api/v1/checks/batch', [
+                'addresses' => ['TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk', 'TU72cTvdkWvoB7xgN5TXFtoXtUuWRuvUTm'],
+                'deep' => true,
+            ])
+            ->assertStatus(202)
+            ->assertJsonPath('queued', 2);
+
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\ProcessWalletBatchJob::class);
+    }
+
+    public function test_webhook_fires_on_completed_check(): void
+    {
+        Http::fake([
+            'https://hooks.example.test/aml' => Http::response(['ok' => true]),
+            'https://api.gopluslabs.io/api/v1/token' => Http::response([
+                'code' => 1,
+                'result' => ['access_token' => 'test-token', 'expires_in' => 3600],
+            ]),
+            'https://api.gopluslabs.io/api/v1/address_security/*' => Http::response([
+                'code' => 1,
+                'result' => ['sanctioned' => '0', 'money_laundering' => '0'],
+            ]),
+            'https://api.trongrid.io/*' => Http::response(['data' => []], 200),
+        ]);
+
+        $user = User::factory()->create([
+            'webhook_url' => 'https://hooks.example.test/aml',
+            'webhook_secret' => 's3cret',
+        ]);
+
+        app(\App\Services\Screening\ScreeningService::class)->runAddress(
+            $user,
+            'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'tron',
+        );
+
+        Http::assertSent(function ($request) {
+            $signature = $request->header('X-Ganimed-Signature');
+            $value = is_array($signature) ? ($signature[0] ?? '') : (string) $signature;
+
+            return $request->url() === 'https://hooks.example.test/aml'
+                && str_starts_with($value, 'sha256=');
+        });
+    }
+
+    public function test_watchlist_rerun_alerts_on_worse_verdict(): void
+    {
+        Http::fake([
+            'https://hooks.example.test/aml' => Http::response(['ok' => true]),
+            'https://api.gopluslabs.io/api/v1/token' => Http::response([
+                'code' => 1,
+                'result' => ['access_token' => 'test-token', 'expires_in' => 3600],
+            ]),
+            'https://api.gopluslabs.io/api/v1/address_security/*' => Http::response([
+                'code' => 1,
+                'result' => ['sanctioned' => '1'],
+            ]),
+            'https://api.trongrid.io/*' => Http::response(['data' => []], 200),
+        ]);
+
+        $user = User::factory()->create([
+            'webhook_url' => 'https://hooks.example.test/aml',
+            'webhook_secret' => 's3cret',
+        ]);
+        $check = Check::factory()->create([
+            'user_id' => $user->id,
+            'type' => CheckType::Address,
+            'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'chain_id' => 'tron',
+            'status' => CheckStatus::Completed,
+            'verdict' => CheckVerdict::Clear,
+        ]);
+        \App\Models\WatchItem::query()->create([
+            'user_id' => $user->id,
+            'last_check_id' => $check->id,
+            'type' => CheckType::Address,
+            'subject' => $check->subject,
+            'chain_id' => 'tron',
+            'interval_days' => 1,
+            'last_verdict' => CheckVerdict::Clear,
+            'last_run_at' => now()->subDays(2),
+        ]);
+
+        $this->artisan('aml:watch-run')->assertSuccessful();
+        $this->assertDatabaseHas('activity_logs', ['action' => 'watch']);
     }
 }

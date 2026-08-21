@@ -275,4 +275,44 @@ class OnchainEnrichmentTest extends TestCase
         $this->assertArrayNotHasKey('error', $check->enrichment);
         $this->assertSame('2.5', $check->enrichment['balances'][0]['amount']);
     }
+
+    public function test_enrich_endpoint_loads_missing_onchain_data(): void
+    {
+        Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::response([
+                'data' => [[
+                    'balance' => 3000000,
+                    'trc20' => [],
+                    'owner_permission' => ['threshold' => 1, 'keys' => []],
+                ]],
+            ]),
+        ]);
+
+        $user = User::factory()->create();
+        $check = $user->checks()->create([
+            'type' => CheckType::Address,
+            'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'chain_id' => 'tron',
+            'status' => 'completed',
+            'verdict' => 'clear',
+            'risk_score' => 0,
+            'locale' => 'ru',
+            'raw_response' => ['sanctioned' => '0'],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('checks.show', $check))
+            ->assertOk()
+            ->assertSee(__('aml.processing_onchain'), false);
+
+        $this->actingAs($user)
+            ->postJson(route('checks.enrich', $check))
+            ->assertOk()
+            ->assertJsonPath('ok', true);
+
+        $check->refresh();
+        $this->assertSame('3', $check->enrichment['balances'][0]['amount']);
+    }
 }

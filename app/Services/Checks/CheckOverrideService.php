@@ -43,6 +43,11 @@ class CheckOverrideService
             : max($this->scoring->breakdown($check)['total'], RiskScoringService::ONCHAIN_FLOOR);
         $check->save();
 
+        app(\App\Services\Ops\ActivityLogger::class)->record($user, 'verdict', $check, [
+            'verdict' => $new->value,
+        ]);
+        \App\Jobs\DispatchAmlWebhookJob::forCheck('check.verdict.changed', $check->loadMissing('user'));
+
         return $check->refresh();
     }
 

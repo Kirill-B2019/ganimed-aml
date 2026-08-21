@@ -9,20 +9,25 @@ use Illuminate\Http\Response;
 
 class CheckPdfService
 {
+    public const VARIANT_FILE = 'file';
+
+    public const VARIANT_FULL = 'full';
+
     public function __construct(private CheckReportPresenter $presenter) {}
 
-    public function download(Check $check): Response
+    public function download(Check $check, string $variant = self::VARIANT_FULL): Response
     {
-        $check->loadMissing('user');
+        $check->loadMissing('user', 'previousCheck');
+        $variant = $this->normalize($variant);
 
-        $pdf = Pdf::loadHTML($this->html($check))
+        $pdf = Pdf::loadHTML($this->html($check, $variant))
             ->setPaper('a4')
             ->setOption('defaultFont', 'DejaVu Sans');
 
-        return $pdf->download($this->filename($check));
+        return $pdf->download($this->filename($check, $variant));
     }
 
-    public function filename(Check $check): string
+    public function filename(Check $check, string $variant = self::VARIANT_FULL): string
     {
         $subject = preg_replace('/[^A-Za-z0-9]+/', '-', (string) $check->subject) ?? '';
         $subject = trim($subject, '-');
@@ -30,20 +35,30 @@ class CheckPdfService
             $subject = 'check-'.$check->id;
         }
 
-        return $subject.'_'.now()->format('Y-m-d_H-i-s').'.pdf';
+        return $subject.'_'.now()->format('Y-m-d_H-i-s').'_'.$this->normalize($variant).'.pdf';
     }
 
-    public function html(Check $check): string
+    public function html(Check $check, string $variant = self::VARIANT_FULL): string
     {
         $locale = $this->activeLocale();
         $previous = app()->getLocale();
         app()->setLocale($locale);
+        $variant = $this->normalize($variant);
 
         try {
-            return view('reports.check', $this->presenter->data($check, true))->render();
+            return view('reports.check', $this->presenter->data(
+                $check,
+                true,
+                $variant === self::VARIANT_FILE,
+            ))->render();
         } finally {
             app()->setLocale($previous);
         }
+    }
+
+    public function normalize(string $variant): string
+    {
+        return $variant === self::VARIANT_FILE ? self::VARIANT_FILE : self::VARIANT_FULL;
     }
 
     private function activeLocale(): string

@@ -20,6 +20,8 @@ class User extends Authenticatable
         'email',
         'password',
         'is_admin',
+        'webhook_url',
+        'webhook_secret',
     ];
 
     protected $hidden = [
@@ -39,5 +41,15 @@ class User extends Authenticatable
     public function checks(): HasMany
     {
         return $this->hasMany(Check::class);
+    }
+
+    public function screeningCases(): HasMany
+    {
+        return $this->hasMany(ScreeningCase::class);
+    }
+
+    public function watchItems(): HasMany
+    {
+        return $this->hasMany(WatchItem::class);
     }
 }

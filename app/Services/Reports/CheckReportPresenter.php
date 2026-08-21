@@ -50,7 +50,7 @@ class CheckReportPresenter
     /**
      * @return array<string, mixed>
      */
-    public function data(Check $check, bool $pdf = false): array
+    public function data(Check $check, bool $pdf = false, bool $compact = false): array
     {
         $onchain = is_array($check->enrichment) ? $check->enrichment : [];
         $hasOnchain = $onchain !== [] && empty($onchain['skipped']) && empty($onchain['error']);
@@ -58,13 +58,18 @@ class CheckReportPresenter
         $usdSummary = $isWalletReport ? $this->usd->summarize($check) : null;
         $radarAxes = $isWalletReport ? $this->radar->axes($check) : [];
         $tokenPieSlices = $isWalletReport ? $this->withShares($this->pie->slices($check)) : [];
+        $flagRows = $this->flagRows($check);
+        [$hotFlags, $quietFlags] = $this->partitionFlags($flagRows);
+        [$hotRadar, $quietRadarCount] = $this->partitionRadar($radarAxes);
 
         $balanceRows = $isWalletReport && $hasOnchain ? $this->balanceRows($check, $onchain, $usdSummary) : [];
         $inflowRows = $isWalletReport && $hasOnchain ? $this->inflowRows($check, $onchain) : [];
         $nativeRow = collect($balanceRows)->first(fn ($row) => ($row['kind'] ?? '') === 'native');
+        $previous = $check->previousCheck;
 
         return [
             'check' => $check,
+            'compact' => $compact,
             'generatedAt' => now(),
             'footer' => (string) config('report.footer'),
             'brand' => 'GANIMED AML',
@@ -75,6 +80,8 @@ class CheckReportPresenter
             'showRadar' => $isWalletReport,
             'showOnchain' => $isWalletReport && $hasOnchain,
             'radarAxes' => $radarAxes,
+            'hotRadarAxes' => $hotRadar,
+            'quietRadarCount' => $quietRadarCount,
             'assetNarrative' => $isWalletReport ? $this->narrative->describe($check) : '',
             'tokenPieSlices' => $tokenPieSlices,
             'tokenPieSvg' => $tokenPieSlices !== [] ? $this->pie->svg($tokenPieSlices, 180) : '',
@@ -84,7 +91,9 @@ class CheckReportPresenter
             'nativeRow' => $nativeRow,
             'pills' => $this->pills($check, $isWalletReport && $hasOnchain, $onchain),
             'readingNote' => $this->readingNote($check, $isWalletReport && $hasOnchain, $onchain),
-            'flagRows' => $this->flagRows($check),
+            'flagRows' => $flagRows,
+            'hotFlags' => $hotFlags,
+            'quietFlags' => $quietFlags,
             'scoreBreakdown' => $check->isCompleted() ? $this->scoring->breakdown($check) : null,
             'canOverrideVerdict' => $check->canOverrideVerdict(),
             'overrideNote' => is_string($check->overridePayload()['note'] ?? null) ? $check->overridePayload()['note'] : '',
@@ -95,6 +104,8 @@ class CheckReportPresenter
             'signerRows' => $isWalletReport && $hasOnchain ? $this->signerRows($check, $onchain) : [],
             'controlNarrative' => $isWalletReport && $hasOnchain ? $this->controlNarrative($check, $onchain) : '',
             'conclusion' => $this->conclusion($check, $isWalletReport && $hasOnchain, $onchain, $usdSummary),
+            'freshness' => $this->freshness($check, $onchain, $isWalletReport),
+            'delta' => $previous ? $this->delta($previous, $check, $usdSummary, $inflowRows) : null,
         ];
     }
 
@@ -234,6 +245,106 @@ class CheckReportPresenter
         }
 
         return $rows;
+    }
+
+    /**
+     * @param  list<array{field: string, value: string, meaning: string, points: int}>  $rows
+     * @return array{0: list<array{field: string, value: string, meaning: string, points: int}>, 1: list<array{field: string, value: string, meaning: string, points: int}>}
+     */
+    private function partitionFlags(array $rows): array
+    {
+        $hot = [];
+        $quiet = [];
+        foreach ($rows as $row) {
+            if ($this->isHotFlag($row)) {
+                $hot[] = $row;
+            } else {
+                $quiet[] = $row;
+            }
+        }
+
+        return [$hot, $quiet];
+    }
+
+    /**
+     * @param  array{value?: string, points?: int}  $row
+     */
+    public static function isHotFlag(array $row): bool
+    {
+        if ((int) ($row['points'] ?? 0) > 0) {
+            return true;
+        }
+
+        return ! in_array((string) ($row['value'] ?? ''), ['0', '—', '', '[]', 'null'], true);
+    }
+
+    /**
+     * @param  list<array{key: string, value: int}>  $axes
+     * @return array{0: list<array{key: string, value: int}>, 1: int}
+     */
+    private function partitionRadar(array $axes): array
+    {
+        $hot = [];
+        foreach ($axes as $axis) {
+            if ((int) ($axis['value'] ?? 0) > 0) {
+                $hot[] = $axis;
+            }
+        }
+
+        return [$hot, max(0, count($axes) - count($hot))];
+    }
+
+    /**
+     * @param  array<string, mixed>  $onchain
+     * @return array{goplus: ?string, trongrid: ?string, tx_window: ?int}
+     */
+    private function freshness(Check $check, array $onchain, bool $isWalletReport): array
+    {
+        return [
+            'goplus' => $check->updated_at?->timezone(config('app.timezone'))->format('d.m.Y H:i'),
+            'trongrid' => $isWalletReport && ! empty($onchain['fetched_at'])
+                ? (string) $onchain['fetched_at']
+                : null,
+            'tx_window' => $isWalletReport ? ($onchain['tx_window'] ?? null) : null,
+        ];
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $inflowRows
+     * @return array<string, mixed>
+     */
+    private function delta(Check $previous, Check $current, ?array $usdSummary, array $inflowRows): array
+    {
+        $prevUsd = in_array($previous->type, [CheckType::Address, CheckType::Scan], true)
+            ? $this->usd->summarize($previous)
+            : null;
+        $prevOnchain = is_array($previous->enrichment) ? $previous->enrichment : [];
+        $prevInflows = is_array($prevOnchain['inflows'] ?? null) ? $prevOnchain['inflows'] : [];
+
+        $prevKeys = collect($previous->flags ?? [])->pluck('key')->filter()->sort()->values()->all();
+        $currKeys = collect($current->flags ?? [])->pluck('key')->filter()->sort()->values()->all();
+
+        return [
+            'previous_id' => $previous->id,
+            'verdict' => [
+                'from' => $previous->verdict?->label() ?? '—',
+                'to' => $current->verdict?->label() ?? '—',
+            ],
+            'score' => [
+                'from' => (int) $previous->risk_score,
+                'to' => (int) $current->risk_score,
+            ],
+            'usd' => [
+                'from' => is_array($prevUsd) ? ($prevUsd['formatted'] ?? '—') : '—',
+                'to' => is_array($usdSummary) ? ($usdSummary['formatted'] ?? '—') : '—',
+            ],
+            'flags_added' => array_values(array_diff($currKeys, $prevKeys)),
+            'flags_removed' => array_values(array_diff($prevKeys, $currKeys)),
+            'inflows' => [
+                'from' => count($prevInflows),
+                'to' => count($inflowRows),
+            ],
+        ];
     }
 
     /**

@@ -44,7 +44,7 @@ class CheckController extends Controller
         abort_unless($check->status === CheckStatus::Completed, 409);
         $enrichment->fill($check);
 
-        return $pdf->download($check);
+        return $pdf->download($check, $pdf->normalize((string) $request->query('variant', CheckPdfService::VARIANT_FULL)));
     }
 
     public function address(StoreAddressCheckRequest $request, ScreeningService $screening)
@@ -53,6 +53,7 @@ class CheckController extends Controller
             $request->user(),
             $request->validated('address'),
             $request->validated('chain_id'),
+            ['case_id' => $request->integer('case_id') ?: null],
         );
 
         return (new CheckResource($check))->response()->setStatusCode(
@@ -66,6 +67,7 @@ class CheckController extends Controller
             $request->user(),
             $request->validated('contract'),
             $request->validated('chain_id'),
+            ['case_id' => $request->integer('case_id') ?: null],
         );
 
         return (new CheckResource($check))->response()->setStatusCode(
@@ -75,7 +77,11 @@ class CheckController extends Controller
 
     public function phishing(StoreUrlCheckRequest $request, ScreeningService $screening)
     {
-        $check = $screening->runPhishing($request->user(), $request->validated('url'));
+        $check = $screening->runPhishing(
+            $request->user(),
+            $request->validated('url'),
+            ['case_id' => $request->integer('case_id') ?: null],
+        );
 
         return (new CheckResource($check))->response()->setStatusCode(
             $check->status === CheckStatus::Failed ? 502 : 201
@@ -84,7 +90,11 @@ class CheckController extends Controller
 
     public function dapp(StoreUrlCheckRequest $request, ScreeningService $screening)
     {
-        $check = $screening->runDapp($request->user(), $request->validated('url'));
+        $check = $screening->runDapp(
+            $request->user(),
+            $request->validated('url'),
+            ['case_id' => $request->integer('case_id') ?: null],
+        );
 
         return (new CheckResource($check))->response()->setStatusCode(
             $check->status === CheckStatus::Failed ? 502 : 201
@@ -97,11 +107,36 @@ class CheckController extends Controller
             $request->user(),
             $request->validated('address'),
             $request->validated('chain_id'),
+            ['case_id' => $request->integer('case_id') ?: null],
         );
 
         return (new CheckResource($check))->response()->setStatusCode(
             $check->status === CheckStatus::Pending ? 202 : ($check->status === CheckStatus::Failed ? 502 : 201)
         );
+    }
+
+    public function batch(Request $request)
+    {
+        $validated = $request->validate([
+            'addresses' => ['required', 'array', 'min:1', 'max:50'],
+            'addresses.*' => ['required', 'string', 'min:8', 'max:128'],
+            'deep' => ['sometimes', 'boolean'],
+            'case_id' => ['nullable', 'integer'],
+        ]);
+
+        $addresses = array_values(array_unique($validated['addresses']));
+        \App\Jobs\ProcessWalletBatchJob::dispatch(
+            $request->user()->id,
+            $addresses,
+            (bool) ($validated['deep'] ?? false),
+            $validated['case_id'] ?? null,
+        );
+
+        return response()->json([
+            'queued' => count($addresses),
+            'deep' => (bool) ($validated['deep'] ?? false),
+            'case_id' => $validated['case_id'] ?? null,
+        ], 202);
     }
 
     private function authorizeCheck(Request $request, Check $check): void

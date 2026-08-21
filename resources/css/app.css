@@ -109,4 +109,23 @@
     .nav-ink .locale-switch a[aria-current='true'] {
         @apply bg-white text-ink;
     }
+
+    .processing-overlay {
+        @apply fixed inset-0 z-[80] flex items-center justify-center bg-ink/70 px-4;
+    }
+
+    .processing-card {
+        @apply w-full max-w-sm border border-ink-line bg-white p-6 text-center;
+    }
+
+    .processing-spinner {
+        @apply mx-auto h-8 w-8 rounded-full border-2 border-ink-line border-t-ink;
+        animation: processing-spin 0.7s linear infinite;
+    }
+}
+
+@keyframes processing-spin {
+    to {
+        transform: rotate(360deg);
+    }
 }

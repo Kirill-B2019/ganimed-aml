@@ -11,7 +11,12 @@
         <link rel="icon" href="{{ asset('images/logo-gnd-mark.png') }}" type="image/png">
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans antialiased text-ink bg-ink-paper">
+    <body
+        class="font-sans antialiased text-ink bg-ink-paper"
+        x-data="processingGate()"
+        data-processing-title="{{ __('aml.processing_title') }}"
+        data-processing-body="{{ __('aml.processing_body') }}"
+    >
         <a href="#main" class="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-ink focus:px-3 focus:py-2 focus:text-white">{{ __('aml.skip_content') }}</a>
         <div class="min-h-screen flex flex-col">
             @include('layouts.navigation')
@@ -30,5 +35,6 @@
 
             <x-site-footer />
         </div>
+        <x-processing-overlay />
     </body>
 </html>

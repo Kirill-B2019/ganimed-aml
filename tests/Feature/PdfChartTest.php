@@ -90,6 +90,44 @@ class PdfChartTest extends TestCase
         $this->assertMatchesRegularExpression('/0\.74[45]\d* 0\.07[01]\d* 0\.23[45]\d* rg/', $decoded);
     }
 
+    public function test_file_pdf_omits_inflow_table_and_keeps_conclusion_first(): void
+    {
+        Http::fake();
+        app()->setLocale('ru');
+
+        $user = User::factory()->create();
+        $check = $user->checks()->create([
+            'type' => CheckType::Address,
+            'subject' => 'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'chain_id' => 'tron',
+            'status' => CheckStatus::Completed,
+            'verdict' => CheckVerdict::Review,
+            'risk_score' => 20,
+            'locale' => 'ru',
+            'flags' => [['key' => 'mixer', 'value' => '1', 'severity' => 'review']],
+            'raw_response' => ['mixer' => '1', 'sanctioned' => '0', 'contract_address' => '0'],
+            'enrichment' => [
+                'source' => 'trongrid',
+                'control' => ['type' => 'single'],
+                'balances' => [
+                    ['symbol' => 'TRX', 'amount' => '1', 'kind' => 'native', 'name' => 'TRON'],
+                ],
+                'inflows' => [
+                    ['from' => 'TXRXj1WQ', 'symbol' => 'TRX', 'amount' => '15.1', 'tx_count' => 7],
+                ],
+            ],
+        ]);
+
+        $file = view('reports.check', app(CheckReportPresenter::class)->data($check, true, true))->render();
+        $conclusion = strpos($file, 'Вывод для файла');
+        $why = strpos($file, 'Почему такой вердикт');
+        $this->assertNotFalse($conclusion);
+        $this->assertNotFalse($why);
+        $this->assertLessThan($why, $conclusion);
+        $this->assertStringNotContainsString('class="stackbar"', $file);
+        $this->assertStringNotContainsString(__('aml.inflows'), $file);
+    }
+
     private function decodedPdf(string $pdf): string
     {
         preg_match_all('/stream\r?\n(.*?)\r?\nendstream/s', $pdf, $matches);

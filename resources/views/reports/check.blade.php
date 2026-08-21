@@ -135,6 +135,11 @@
         <strong>{{ __('aml.reading_title') }}.</strong> {{ $readingNote }}
     </div>
 
+    <h2>{{ __('aml.conclusion_title') }}</h2>
+    @foreach ($conclusion as $paragraph)
+        <p>{{ $paragraph }}</p>
+    @endforeach
+
     <h2>{{ __('aml.object_title') }}</h2>
     <table>
         <thead>
@@ -159,11 +164,11 @@
         </tbody>
     </table>
 
-    @if ($showRadar && ! empty($radarAxes))
+    @if ($showRadar && ! empty($hotRadarAxes) && empty($compact))
         <h2>{{ __('aml.radar_title') }}</h2>
         <p class="muted">{{ __('aml.radar_hint') }}</p>
         <table class="chart">
-            @foreach ($radarAxes as $axis)
+            @foreach ($hotRadarAxes as $axis)
                 @php($pct = max(0, min(100, (int) $axis['value'])))
                 <tr>
                     <td style="width: 28%;">{{ __('aml.radar.'.$axis['key']) }}</td>
@@ -174,10 +179,15 @@
                 </tr>
             @endforeach
         </table>
+        @if (($quietRadarCount ?? 0) > 0)
+            <p class="muted">{{ __('aml.radar_quiet', ['count' => $quietRadarCount]) }}</p>
+        @endif
     @endif
 
-    @if (! empty($flagRows))
-        <h3>{{ __('aml.provider_decode') }}</h3>
+    <h3>{{ __('aml.why_title') }}</h3>
+    @if (empty($hotFlags))
+        <p class="muted">{{ __('aml.flags_none') }}</p>
+    @else
         <table>
             <thead>
                 <tr>
@@ -188,9 +198,8 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach ($flagRows as $i => $row)
-                    @php($hot = ! in_array((string) $row['value'], ['0', '—', '', '[]'], true))
-                    <tr class="{{ $hot ? 'row-warning' : ($i % 2 === 1 ? 'row-stripe' : '') }}">
+                @foreach ($hotFlags as $i => $row)
+                    <tr class="row-warning">
                         <td class="mono">{{ $row['field'] }}</td>
                         <td>{{ $row['value'] }}</td>
                         <td>
@@ -209,35 +218,13 @@
         </table>
     @endif
 
-    @if (! empty($scoreBreakdown))
+    @if (! empty($quietFlags) && empty($compact))
+        <p class="muted">{{ __('aml.flags_quiet') }}: {{ count($quietFlags) }}</p>
+    @endif
+
+    @if (! empty($scoreBreakdown) && empty($compact))
         <h3>{{ __('aml.score_title') }}</h3>
-        <p>{{ __('aml.score_how') }}</p>
         <p class="muted">{{ $scoreBreakdown['formula'] }}</p>
-        @if (! empty($scoreBreakdown['lines']))
-            <table>
-                <thead>
-                    <tr>
-                        <th>{{ __('aml.field') }}</th>
-                        <th>{{ __('aml.score_rule') }}</th>
-                        <th>{{ __('aml.score_points') }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($scoreBreakdown['lines'] as $line)
-                        <tr class="{{ ($line['severity'] ?? '') === 'block' ? 'row-danger' : '' }}">
-                            <td>{{ $line['label'] }}</td>
-                            <td>{{ $line['rule'] }}</td>
-                            <td>{{ ((int) $line['points']) > 0 ? '+' : '' }}{{ (int) $line['points'] }}</td>
-                        </tr>
-                    @endforeach
-                    <tr>
-                        <td><strong>{{ __('aml.score_total') }}</strong></td>
-                        <td>{{ $scoreBreakdown['formula'] }}</td>
-                        <td><strong>{{ (int) $scoreBreakdown['total'] }}</strong></td>
-                    </tr>
-                </tbody>
-            </table>
-        @endif
     @endif
 
     @if ($showOnchain)
@@ -268,7 +255,7 @@
         @if (! empty($assetNarrative))
             <p>{{ $assetNarrative }}</p>
         @endif
-        @if (! empty($tokenPieSlices))
+        @if (! empty($tokenPieSlices) && empty($compact))
             <h3>{{ __('aml.token_pie_title') }}</h3>
             <p class="muted">{{ __('aml.token_pie_hint') }}</p>
             <table class="stackbar" cellpadding="0" cellspacing="0">
@@ -355,6 +342,7 @@
             </tr>
         </table>
 
+        @if (empty($compact))
         <h2>{{ __('aml.inflows') }}</h2>
         <p class="muted">{{ __('aml.inflow_hint') }}</p>
         @if (! empty($inflowBars) && collect($inflowBars)->sum('value') > 0)
@@ -399,12 +387,7 @@
                 @endforeach
             </tbody>
         </table>
+        @endif
     @endif
-
-    <div class="rule"></div>
-    <h2>{{ __('aml.conclusion_title') }}</h2>
-    @foreach ($conclusion as $paragraph)
-        <p>{{ $paragraph }}</p>
-    @endforeach
 </body>
 </html>

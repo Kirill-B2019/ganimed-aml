@@ -23,10 +23,17 @@ curl {$apiBase}/checks/1 \\
   -H "Accept: application/json"
 TXT;
         $curlPdf = <<<TXT
-curl {$apiBase}/checks/1/pdf \\
+curl "{$apiBase}/checks/1/pdf?variant=file" \\
   -H "{$authHeader}" \\
   -H "Accept-Language: en" \\
-  -o TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk_2026-08-21_09-33-15.pdf
+  -o TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk_file.pdf
+TXT;
+        $curlBatch = <<<TXT
+curl -X POST {$apiBase}/checks/batch \\
+  -H "{$authHeader}" \\
+  -H "Accept: application/json" \\
+  -H "Content-Type: application/json" \\
+  -d '{"addresses":["{$sampleAddress}"],"deep":false}'
 TXT;
         $responseExample = <<<'JSON'
 {
@@ -57,10 +64,11 @@ JSON;
             ['POST', '/checks/token', 'contract, chain_id?', '201 / 502', 'api_docs_ep_token'],
             ['POST', '/checks/phishing', 'url', '201 / 502', 'api_docs_ep_phishing'],
             ['POST', '/checks/dapp', 'url', '201 / 502', 'api_docs_ep_dapp'],
-            ['POST', '/checks/scan', 'address, chain_id?', '201 / 202 / 502', 'api_docs_ep_scan'],
-            ['GET', '/checks', 'page', '200', 'api_docs_ep_list'],
-            ['GET', '/checks/{id}', '—', '200 / 403', 'api_docs_ep_show'],
-            ['GET', '/checks/{id}/pdf', '—', '200 / 409', 'api_docs_ep_pdf'],
+                            ['POST', '/checks/scan', 'address, chain_id?', '201 / 202 / 502', 'api_docs_ep_scan'],
+                            ['POST', '/checks/batch', 'addresses[], deep?, case_id?', '202', 'api_docs_ep_batch'],
+                            ['GET', '/checks', 'page', '200', 'api_docs_ep_list'],
+                            ['GET', '/checks/{id}', '—', '200 / 403', 'api_docs_ep_show'],
+                            ['GET', '/checks/{id}/pdf', 'variant=file|full', '200 / 409', 'api_docs_ep_pdf'],
         ];
     @endphp
 
@@ -168,6 +176,16 @@ JSON;
                     <div>
                         <h3 class="font-semibold text-ink">{{ __('aml.api_docs_example') }} · GET /checks/{id}/pdf</h3>
                         <x-code-sample class="mt-3" :code="$curlPdf" />
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_example') }} · POST /checks/batch</h3>
+                        <x-code-sample class="mt-3" :code="$curlBatch" />
+                    </div>
+
+                    <div>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_webhook') }}</h3>
+                        <p class="mt-2 leading-6 text-slate-700">{{ __('aml.webhook_hint') }}</p>
                     </div>
 
                     <div>

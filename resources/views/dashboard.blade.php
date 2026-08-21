@@ -29,6 +29,35 @@
                 <x-report-stat :label="__('aml.stats_pending')" :href="route('checks.index', ['status' => 'pending'])">{{ $stats['pending'] }}</x-report-stat>
             </div>
 
+            <x-report-section :title="__('aml.queue_review')">
+                @if ($queue->isEmpty())
+                    <p class="text-sm text-ink-muted">{{ __('aml.no_checks') }}</p>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="ui-table">
+                            <thead>
+                                <tr>
+                                    <th>{{ __('aml.subject') }}</th>
+                                    <th>{{ __('aml.verdict') }}</th>
+                                    <th>{{ __('aml.created') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($queue as $check)
+                                    <tr>
+                                        <td class="font-mono">
+                                            <a class="ui-link" href="{{ route('checks.show', $check) }}">{{ \Illuminate\Support\Str::limit($check->subject, 28) }}</a>
+                                        </td>
+                                        <td><x-verdict-badge :verdict="$check->verdict" /></td>
+                                        <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at->format('d.m.Y H:i') }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </x-report-section>
+
             <x-report-section :title="__('aml.latest_checks')">
                 @if ($latest->isEmpty())
                     <div class="py-6 text-center space-y-3">
@@ -55,7 +84,7 @@
                                         </td>
                                         <td>{{ $check->type->label() }}</td>
                                         <td><x-verdict-badge :verdict="$check->verdict" /></td>
-                                        <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at->diffForHumans() }}</td>
+                                        <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at->format('d.m.Y H:i') }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>

@@ -70,6 +70,17 @@ class OnchainEnrichmentService
             || str_contains($error, 'Too Many Attempts');
     }
 
+    public function needsFetch(Check $check): bool
+    {
+        if (! in_array($check->type, [CheckType::Address, CheckType::Scan], true)) {
+            return false;
+        }
+
+        $enrichment = is_array($check->enrichment) ? $check->enrichment : null;
+
+        return $enrichment === null || $enrichment === [];
+    }
+
     /**
      * On-chain hygiene review (multisig, lookalikes, spam) raises a clear file to review.
      */

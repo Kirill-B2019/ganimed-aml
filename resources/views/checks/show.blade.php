@@ -2,15 +2,16 @@
 <x-app-layout :title="$reportTitle ?? __('aml.report_title')">
     @php
         $isMultisig = $showOnchain && ($onchain['control']['type'] ?? '') === 'multisig';
-        $verdictTone = match ($check->verdict?->value) {
-            'block' => 'danger',
-            'review' => 'warning',
-            default => 'success',
-        };
         $scoreTone = ((int) ($check->risk_score ?? 0)) > 0 ? 'warning' : 'success';
         $officialUsdt = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t';
         $pieMax = max(1, collect($tokenPieSlices ?? [])->sum('value'));
         $inflowMax = max(1, collect($inflowBars ?? [])->max('value') ?? 1);
+        $hotFlags = $hotFlags ?? [];
+        $quietFlags = $quietFlags ?? [];
+        $hotRadarAxes = $hotRadarAxes ?? [];
+        $quietRadarCount = $quietRadarCount ?? 0;
+        $freshness = $freshness ?? [];
+        $delta = $delta ?? null;
     @endphp
 
     <div class="sticky top-14 z-20 border-b border-ink-line bg-ink-paper/95 backdrop-blur-sm">
@@ -21,16 +22,40 @@
                 <span class="hidden truncate font-mono text-ink sm:inline">{{ $check->subject }}</span>
                 <x-copy-button :text="$check->subject" class="hidden shrink-0 sm:inline" />
             </div>
-            <div class="flex shrink-0 items-center gap-2">
+            <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
                 @if ($check->isCompleted())
                     <x-verdict-badge :verdict="$check->verdict" />
-                    <x-secondary-button :href="route('checks.pdf', $check)">{{ __('aml.download_pdf') }}</x-secondary-button>
+                    <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'file'])">{{ __('aml.pdf_file') }}</x-secondary-button>
+                    <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'full'])">{{ __('aml.pdf_full') }}</x-secondary-button>
+                    <form method="POST" action="{{ route('checks.rerun', $check) }}">
+                        @csrf
+                        <x-primary-button>{{ __('aml.rerun') }}</x-primary-button>
+                    </form>
+                    <form method="POST" action="{{ route('watch.store') }}">
+                        @csrf
+                        <input type="hidden" name="check_id" value="{{ $check->id }}">
+                        <input type="hidden" name="interval_days" value="7">
+                        <x-secondary-button type="submit">{{ __('aml.watch_add') }}</x-secondary-button>
+                    </form>
                 @endif
             </div>
         </div>
     </div>
 
-    <div class="py-8" @if ($check->isPending()) x-data="scanPoll({{ $check->id }})" @endif>
+    <div
+        class="py-8"
+        @if ($check->isPending() || ($needsOnchainFetch ?? false))
+            x-data="checkWaiter({
+                pending: {{ $check->isPending() ? 'true' : 'false' }},
+                enrich: {{ ($needsOnchainFetch ?? false) ? 'true' : 'false' }},
+                statusUrl: @js(route('checks.status', $check)),
+                enrichUrl: @js(route('checks.enrich', $check)),
+                scanTitle: @js(__('aml.processing_title')),
+                scanBody: @js(__('aml.processing_scan')),
+                enrichBody: @js(__('aml.processing_onchain')),
+            })"
+        @endif
+    >
         <div class="page space-y-8">
             @if (session('status'))
                 <div class="ui-alert ui-alert-success">{{ session('status') }}</div>
@@ -49,11 +74,19 @@
                                 · {{ $check->chainName() }}
                             @endif
                             · {{ $sources }}
-                            @if ($check->isCompleted())
-                                · {{ $generatedAt }}
-                            @endif
                             · #{{ $check->id }}
                         </p>
+                        @if (! empty($freshness['goplus']))
+                            <p class="mt-1 text-xs text-ink-muted">
+                                {{ __('aml.freshness_goplus') }} · {{ $freshness['goplus'] }}
+                                @if (! empty($freshness['trongrid']))
+                                    · {{ __('aml.freshness_trongrid') }} · {{ $freshness['trongrid'] }}
+                                @endif
+                                @if (! empty($freshness['tx_window']))
+                                    · {{ __('aml.freshness_window', ['n' => $freshness['tx_window']]) }}
+                                @endif
+                            </p>
+                        @endif
                         <div class="mt-3 flex min-w-0 items-center gap-2">
                             <span class="truncate font-mono text-sm text-ink">{{ $check->subject }}</span>
                             <x-copy-button :text="$check->subject" class="sm:hidden" />
@@ -64,26 +97,28 @@
                             @endforeach
                         </div>
                     </div>
-                    <div class="grid shrink-0 grid-cols-2 gap-6 lg:min-w-[16rem]">
-                        <div>
-                            <div class="text-[11px] uppercase tracking-[0.08em] text-ink-muted">{{ __('aml.verdict') }}</div>
-                            <div @class([
-                                'mt-1 text-2xl font-semibold tracking-tight',
-                                'text-rose-800' => $verdictTone === 'danger',
-                                'text-amber-800' => $verdictTone === 'warning',
-                                'text-emerald-800' => $verdictTone === 'success',
-                            ])>{{ $check->verdict?->label() ?? '—' }}</div>
-                        </div>
-                        <div>
-                            <div class="text-[11px] uppercase tracking-[0.08em] text-ink-muted">{{ __('aml.flag_score') }}</div>
-                            <div @class([
-                                'mt-1 text-2xl font-semibold tabular-nums tracking-tight',
-                                'text-amber-800' => $scoreTone === 'warning',
-                                'text-emerald-800' => $scoreTone === 'success',
-                            ])>{{ $check->risk_score ?? '—' }}</div>
-                        </div>
+                    <div>
+                        <div class="text-[11px] uppercase tracking-[0.08em] text-ink-muted">{{ __('aml.flag_score') }}</div>
+                        <div @class([
+                            'mt-1 text-2xl font-semibold tabular-nums tracking-tight',
+                            'text-amber-800' => $scoreTone === 'warning',
+                            'text-emerald-800' => $scoreTone === 'success',
+                        ])>{{ $check->risk_score ?? '—' }}</div>
+                        @if ($check->isCompleted() && ! empty($scoreBreakdown['formula']))
+                            <p class="mt-1 text-xs text-ink-muted">{{ $scoreBreakdown['formula'] }}</p>
+                        @endif
                     </div>
                 </div>
+
+                @if ($check->isCompleted() && ! empty($conclusion))
+                    <div class="space-y-3 border-t border-ink-line pt-5 text-sm leading-7 text-ink">
+                        <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-muted">{{ __('aml.conclusion_title') }}</div>
+                        @foreach ($conclusion as $paragraph)
+                            <p>{{ $paragraph }}</p>
+                        @endforeach
+                    </div>
+                @endif
+
                 @if ($check->isCompleted())
                     <div class="border-l-[3px] border-amber-600 bg-amber-50/80 px-4 py-3 text-sm leading-6 text-amber-950">
                         <div class="mb-1 font-semibold">{{ __('aml.reading_title') }}</div>
@@ -92,8 +127,51 @@
                 @endif
             </div>
 
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                @if ($isWalletReport)
+            @if (! empty($delta))
+                <x-report-section :title="__('aml.delta_title')">
+                    <p class="mb-3 text-sm text-ink-muted">#{{ $delta['previous_id'] }}</p>
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-left text-xs text-ink-muted">
+                                <th class="pb-2 pr-4 font-medium"></th>
+                                <th class="pb-2 pr-4 font-medium">{{ __('aml.delta_from') }}</th>
+                                <th class="pb-2 font-medium">{{ __('aml.delta_to') }}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="border-t border-ink-line">
+                                <td class="py-2 pr-4 text-ink-muted">{{ __('aml.verdict') }}</td>
+                                <td class="py-2 pr-4">{{ $delta['verdict']['from'] }}</td>
+                                <td class="py-2">{{ $delta['verdict']['to'] }}</td>
+                            </tr>
+                            <tr class="border-t border-ink-line">
+                                <td class="py-2 pr-4 text-ink-muted">{{ __('aml.score') }}</td>
+                                <td class="py-2 pr-4 font-mono">{{ $delta['score']['from'] }}</td>
+                                <td class="py-2 font-mono">{{ $delta['score']['to'] }}</td>
+                            </tr>
+                            <tr class="border-t border-ink-line">
+                                <td class="py-2 pr-4 text-ink-muted">{{ __('aml.wallet_usd') }}</td>
+                                <td class="py-2 pr-4 font-mono">{{ $delta['usd']['from'] }}</td>
+                                <td class="py-2 font-mono">{{ $delta['usd']['to'] }}</td>
+                            </tr>
+                            <tr class="border-t border-ink-line">
+                                <td class="py-2 pr-4 text-ink-muted">{{ __('aml.delta_inflows') }}</td>
+                                <td class="py-2 pr-4 font-mono">{{ $delta['inflows']['from'] }}</td>
+                                <td class="py-2 font-mono">{{ $delta['inflows']['to'] }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    @if ($delta['flags_added'] !== [])
+                        <p class="mt-3 text-sm">{{ __('aml.delta_flags_added') }}: {{ implode(', ', $delta['flags_added']) }}</p>
+                    @endif
+                    @if ($delta['flags_removed'] !== [])
+                        <p class="mt-1 text-sm">{{ __('aml.delta_flags_removed') }}: {{ implode(', ', $delta['flags_removed']) }}</p>
+                    @endif
+                </x-report-section>
+            @endif
+
+            @if ($isWalletReport)
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
                     <x-report-stat :label="__('aml.control_keys')" :tone="$isMultisig ? 'warning' : 'neutral'">
                         @if ($isMultisig)
                             {{ __('aml.multisig') }} {{ $onchain['control']['threshold'] ?? '' }}
@@ -110,13 +188,10 @@
                             —
                         @endif
                     </x-report-stat>
-                    <x-report-stat :label="__('aml.type')">{{ $check->type->label() }}</x-report-stat>
+                    <x-report-stat :label="__('aml.wallet_usd')">{{ $usdSummary['formatted'] ?? '—' }}</x-report-stat>
                     <x-report-stat :label="__('aml.chain')">{{ $check->chainName() ?? '—' }}</x-report-stat>
-                @else
-                    <x-report-stat :label="__('aml.type')">{{ $check->type->label() }}</x-report-stat>
-                    <x-report-stat :label="__('aml.chain')">{{ $check->chainName() ?? '—' }}</x-report-stat>
-                @endif
-            </div>
+                </div>
+            @endif
 
             @if ($canOverrideVerdict)
                 <x-report-section :title="__('aml.override_title')" :hint="__('aml.override_hint')">
@@ -179,89 +254,9 @@
                 </div>
             @endif
 
-            @if ($check->isCompleted() && $showRadar && ! empty($radarAxes))
-                <x-report-section :title="__('aml.radar_title')" :hint="__('aml.radar_hint')">
-                    <div class="space-y-2">
-                        @foreach ($radarAxes as $axis)
-                            <x-report-hbar
-                                :label="__('aml.radar.'.$axis['key'])"
-                                :value="$axis['value']"
-                                :max="100"
-                                :tone="$axis['value'] > 0 ? 'danger' : 'success'"
-                            />
-                        @endforeach
-                    </div>
-                </x-report-section>
-            @endif
-
-            @if ($check->isCompleted() && ! empty($flagRows))
-                <x-report-section :title="__('aml.provider_decode')">
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full text-sm">
-                            <thead>
-                                <tr class="text-left text-xs text-ink-muted">
-                                    <th class="pb-2 pr-4 font-medium">{{ __('aml.api_field') }}</th>
-                                    <th class="pb-2 pr-4 font-medium">{{ __('aml.flag_value') }}</th>
-                                    <th class="pb-2 pr-4 font-medium">{{ __('aml.score_points') }}</th>
-                                    <th class="pb-2 font-medium">{{ __('aml.meaning') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($flagRows as $i => $row)
-                                    @php
-                                        $hot = ! in_array((string) $row['value'], ['0', '—', '', '[]'], true);
-                                    @endphp
-                                    <tr class="border-t border-ink-line {{ $hot ? 'bg-amber-50' : ($i % 2 === 1 ? 'bg-ink-paper' : '') }}">
-                                        <td class="py-2 pr-4 font-mono text-xs text-ink-muted">{{ $row['field'] }}</td>
-                                        <td @class(['py-2 pr-4 font-mono', 'font-semibold text-amber-900' => $hot])>{{ $row['value'] }}</td>
-                                        <td class="py-2 pr-4 font-mono text-ink">
-                                            @if ((int) ($row['points'] ?? 0) === 100)
-                                                {{ __('aml.verdicts.block') }} (100)
-                                            @elseif ((int) ($row['points'] ?? 0) > 0)
-                                                +{{ (int) $row['points'] }}
-                                            @else
-                                                0
-                                            @endif
-                                        </td>
-                                        <td class="py-2 text-ink">{{ $row['meaning'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </x-report-section>
-            @endif
-
-            @if ($check->isCompleted() && ! empty($scoreBreakdown))
-                <x-report-section :title="__('aml.score_title')" :hint="$scoreBreakdown['formula']">
-                    <p class="text-sm leading-6 text-ink">{{ __('aml.score_how') }}</p>
-                    @if (! empty($scoreBreakdown['lines']))
-                        <div class="mt-4 overflow-x-auto">
-                            <table class="min-w-full text-sm">
-                                <thead>
-                                    <tr class="text-left text-xs text-ink-muted">
-                                        <th class="pb-2 pr-4 font-medium">{{ __('aml.field') }}</th>
-                                        <th class="pb-2 pr-4 font-medium">{{ __('aml.score_rule') }}</th>
-                                        <th class="pb-2 font-medium text-right">{{ __('aml.score_points') }}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach ($scoreBreakdown['lines'] as $i => $line)
-                                        <tr class="border-t border-ink-line {{ ($line['severity'] ?? '') === 'block' ? 'bg-rose-50' : ($i % 2 === 1 ? 'bg-ink-paper' : '') }}">
-                                            <td class="py-2 pr-4 text-ink">{{ $line['label'] }}</td>
-                                            <td class="py-2 pr-4 text-ink-muted">{{ $line['rule'] }}</td>
-                                            <td class="py-2 font-mono text-right">{{ ((int) $line['points']) > 0 ? '+' : '' }}{{ (int) $line['points'] }}</td>
-                                        </tr>
-                                    @endforeach
-                                    <tr class="border-t border-ink-line bg-ink-paper font-semibold">
-                                        <td class="py-2 pr-4">{{ __('aml.score_total') }}</td>
-                                        <td class="py-2 pr-4 text-ink-muted">{{ $scoreBreakdown['formula'] }}</td>
-                                        <td class="py-2 font-mono text-right">{{ (int) $scoreBreakdown['total'] }}</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    @endif
+            @if ($check->isCompleted())
+                <x-report-section :title="__('aml.why_title')">
+                    @include('checks.partials.flag-table', ['rows' => $hotFlags])
                 </x-report-section>
             @endif
 
@@ -475,17 +470,71 @@
             @elseif ($isWalletReport && $check->isCompleted() && ! empty($onchain['error']))
                 <x-report-section :title="__('aml.balances')">
                     <p class="text-sm text-rose-700">{{ __('aml.onchain_error') }}: {{ $onchain['error'] }}</p>
+                    <button
+                        type="button"
+                        class="mt-3 inline-flex items-center px-4 py-2 bg-ink text-sm font-medium text-white hover:bg-ink-soft"
+                        @click="retry(@js(route('checks.enrich', $check)), @js(__('aml.processing_onchain')))"
+                    >{{ __('aml.processing_retry') }}</button>
                 </x-report-section>
             @endif
 
-            @if ($check->isCompleted() && ! empty($conclusion))
-                <x-report-section :title="__('aml.conclusion_title')">
-                    <div class="space-y-3 text-sm leading-7 text-ink">
-                        @foreach ($conclusion as $paragraph)
-                            <p>{{ $paragraph }}</p>
+            @if ($check->isCompleted() && $showRadar && (! empty($hotRadarAxes) || $quietRadarCount > 0))
+                <x-report-section :title="__('aml.radar_title')" :hint="__('aml.radar_hint')">
+                    <div class="space-y-2">
+                        @foreach ($hotRadarAxes as $axis)
+                            <x-report-hbar
+                                :label="__('aml.radar.'.$axis['key'])"
+                                :value="$axis['value']"
+                                :max="100"
+                                :tone="$axis['value'] > 0 ? 'danger' : 'success'"
+                            />
                         @endforeach
                     </div>
+                    @if ($quietRadarCount > 0)
+                        <p class="mt-3 text-xs text-ink-muted">{{ __('aml.radar_quiet', ['count' => $quietRadarCount]) }}</p>
+                    @endif
                 </x-report-section>
+            @endif
+
+            @if ($check->isCompleted() && $quietFlags !== [])
+                <details class="border-t border-ink-line pt-4">
+                    <summary class="cursor-pointer text-sm font-medium text-ink">{{ __('aml.flags_quiet') }} ({{ count($quietFlags) }})</summary>
+                    <div class="mt-3">
+                        @include('checks.partials.flag-table', ['rows' => $quietFlags])
+                    </div>
+                </details>
+            @endif
+
+            @if ($check->isCompleted() && ! empty($scoreBreakdown['lines']))
+                <details class="border-t border-ink-line pt-4">
+                    <summary class="cursor-pointer text-sm font-medium text-ink">{{ __('aml.score_details') }}</summary>
+                    <p class="mt-3 text-sm leading-6 text-ink">{{ __('aml.score_how') }}</p>
+                    <div class="mt-4 overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead>
+                                <tr class="text-left text-xs text-ink-muted">
+                                    <th class="pb-2 pr-4 font-medium">{{ __('aml.field') }}</th>
+                                    <th class="pb-2 pr-4 font-medium">{{ __('aml.score_rule') }}</th>
+                                    <th class="pb-2 font-medium text-right">{{ __('aml.score_points') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($scoreBreakdown['lines'] as $i => $line)
+                                    <tr class="border-t border-ink-line {{ ($line['severity'] ?? '') === 'block' ? 'bg-rose-50' : ($i % 2 === 1 ? 'bg-ink-paper' : '') }}">
+                                        <td class="py-2 pr-4 text-ink">{{ $line['label'] }}</td>
+                                        <td class="py-2 pr-4 text-ink-muted">{{ $line['rule'] }}</td>
+                                        <td class="py-2 font-mono text-right">{{ ((int) $line['points']) > 0 ? '+' : '' }}{{ (int) $line['points'] }}</td>
+                                    </tr>
+                                @endforeach
+                                <tr class="border-t border-ink-line bg-ink-paper font-semibold">
+                                    <td class="py-2 pr-4">{{ __('aml.score_total') }}</td>
+                                    <td class="py-2 pr-4 text-ink-muted">{{ $scoreBreakdown['formula'] }}</td>
+                                    <td class="py-2 font-mono text-right">{{ (int) $scoreBreakdown['total'] }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
             @endif
 
             @if ($check->raw_response)

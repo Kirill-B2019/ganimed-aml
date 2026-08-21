@@ -35,6 +35,9 @@ class CheckResource extends JsonResource
                 ? app(WalletUsdValuationService::class)->summarize($this->resource)
                 : null,
             'error_message' => $this->error_message,
+            'previous_check_id' => $this->previous_check_id,
+            'case_id' => $this->case_id,
+            'fetched_at' => is_array($this->enrichment) ? ($this->enrichment['fetched_at'] ?? null) : null,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

@@ -25,6 +25,20 @@ class StoreScanCheckRequest extends FormRequest
     {
         $this->merge([
             'chain_id' => $this->input('chain_id') ?: 'tron',
+            'address' => $this->input('address') ?: $this->firstBatchAddress(),
         ]);
+    }
+
+    private function firstBatchAddress(): ?string
+    {
+        $raw = (string) $this->input('addresses', '');
+        foreach (preg_split('/\R+/', $raw) ?: [] as $line) {
+            $line = trim($line);
+            if ($line !== '') {
+                return $line;
+            }
+        }
+
+        return null;
     }
 }

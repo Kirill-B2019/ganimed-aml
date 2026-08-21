@@ -11,6 +11,7 @@ Route::middleware('auth:sanctum')->prefix('v1')->group(function () {
     Route::post('/checks/phishing', [CheckController::class, 'phishing']);
     Route::post('/checks/dapp', [CheckController::class, 'dapp']);
     Route::post('/checks/scan', [CheckController::class, 'scan']);
+    Route::post('/checks/batch', [CheckController::class, 'batch']);
     Route::get('/checks/{check}', [CheckController::class, 'show']);
     Route::get('/checks/{check}/pdf', [CheckController::class, 'pdf']);
 });
