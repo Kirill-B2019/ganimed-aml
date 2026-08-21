@@ -72,19 +72,23 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <form method="POST" action="{{ route('watch.update', $item) }}" class="flex items-center gap-2">
-                                        @csrf
-                                        @method('PATCH')
-                                        <select name="interval_days" class="ui-select text-sm" onchange="this.form.submit()">
-                                            @foreach ($intervals as $n)
-                                                <option value="{{ $n }}" @selected($item->interval_days === $n)>{{ __('aml.watch_interval_n', ['n' => $n]) }}</option>
-                                            @endforeach
-                                            @if (! in_array($item->interval_days, $intervals, true))
-                                                <option value="{{ $item->interval_days }}" selected>{{ __('aml.watch_interval_n', ['n' => $item->interval_days]) }}</option>
-                                            @endif
-                                        </select>
-                                        <input type="hidden" name="case_id" value="{{ $item->case_id }}">
-                                    </form>
+                                    @if (Route::has('watch.update'))
+                                        <form method="POST" action="{{ route('watch.update', $item) }}" class="flex items-center gap-2">
+                                            @csrf
+                                            @method('PATCH')
+                                            <select name="interval_days" class="ui-select text-sm" onchange="this.form.submit()">
+                                                @foreach ($intervals as $n)
+                                                    <option value="{{ $n }}" @selected((int) $item->interval_days === $n)>{{ __('aml.watch_interval_n', ['n' => $n]) }}</option>
+                                                @endforeach
+                                                @if (! in_array((int) $item->interval_days, $intervals, true))
+                                                    <option value="{{ $item->interval_days }}" selected>{{ __('aml.watch_interval_n', ['n' => $item->interval_days]) }}</option>
+                                                @endif
+                                            </select>
+                                            <input type="hidden" name="case_id" value="{{ $item->case_id }}">
+                                        </form>
+                                    @else
+                                        {{ __('aml.watch_interval_n', ['n' => $item->interval_days]) }}
+                                    @endif
                                 </td>
                                 <td><x-verdict-badge :verdict="$item->last_verdict" /></td>
                                 <td class="text-ink-muted whitespace-nowrap">{{ $item->last_run_at?->format('d.m.Y H:i') ?? '—' }}</td>

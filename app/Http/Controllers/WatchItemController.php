@@ -8,8 +8,10 @@ use App\Models\Check;
 use App\Models\ScreeningCase;
 use App\Models\WatchItem;
 use App\Services\Ops\DefaultScreeningCases;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\View\View;
 
 class WatchItemController extends Controller
@@ -18,16 +20,24 @@ class WatchItemController extends Controller
     {
         $defaults->ensureFor($request->user());
 
-        $items = WatchItem::query()
-            ->where('user_id', $request->user()->id)
-            ->with(['lastCheck', 'screeningCase'])
-            ->latest()
-            ->paginate(30);
+        try {
+            $items = WatchItem::query()
+                ->where('user_id', $request->user()->id)
+                ->with(['lastCheck', 'screeningCase'])
+                ->latest()
+                ->paginate(30);
 
-        $cases = ScreeningCase::query()
-            ->where('user_id', $request->user()->id)
-            ->orderBy('name')
-            ->get();
+            $cases = ScreeningCase::query()
+                ->where('user_id', $request->user()->id)
+                ->orderBy('name')
+                ->get();
+        } catch (QueryException $e) {
+            report($e);
+            $items = new LengthAwarePaginator([], 0, 30, 1, [
+                'path' => $request->url(),
+            ]);
+            $cases = collect();
+        }
 
         return view('watch.index', compact('items', 'cases'));
     }

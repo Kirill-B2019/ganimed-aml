@@ -5,6 +5,8 @@ namespace App\Services\Ops;
 
 use App\Models\ScreeningCase;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
+use Throwable;
 
 class DefaultScreeningCases
 {
@@ -44,17 +46,30 @@ class DefaultScreeningCases
 
     public function ensureFor(User $user): void
     {
-        foreach (self::catalog() as $row) {
-            ScreeningCase::query()->firstOrCreate(
-                [
-                    'user_id' => $user->id,
-                    'slug' => $row['slug'],
-                ],
-                [
+        if (! Schema::hasTable('screening_cases')) {
+            return;
+        }
+
+        $hasSlug = Schema::hasColumn('screening_cases', 'slug');
+
+        try {
+            foreach (self::catalog() as $row) {
+                $match = $hasSlug
+                    ? ['user_id' => $user->id, 'slug' => $row['slug']]
+                    : ['user_id' => $user->id, 'name' => $row['name']];
+
+                $values = [
                     'name' => $row['name'],
                     'note' => $row['note'],
-                ],
-            );
+                ];
+                if ($hasSlug) {
+                    $values['slug'] = $row['slug'];
+                }
+
+                ScreeningCase::query()->firstOrCreate($match, $values);
+            }
+        } catch (Throwable $e) {
+            report($e);
         }
     }
 }
