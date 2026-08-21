@@ -71,6 +71,7 @@ class CheckReportPresenter
         $walletGraph = $isWalletReport && $hasOnchain && is_array($onchain['graph'] ?? null)
             ? $onchain['graph']
             : [];
+        $walletGraphPeers = $walletGraph !== [] ? $this->graphChart->peers($walletGraph) : [];
         $nativeRow = collect($balanceRows)->first(fn ($row) => ($row['kind'] ?? '') === 'native');
         $previous = $check->previousCheck;
 
@@ -111,6 +112,8 @@ class CheckReportPresenter
             'inflowBars' => $this->withBarPercents($this->inflowBars($inflowRows)),
             'walletGraph' => $walletGraph,
             'walletGraphSvg' => $walletGraph !== [] ? $this->graphChart->svg($walletGraph) : '',
+            'walletGraphPeers' => $walletGraphPeers,
+            'walletGraphLegend' => $walletGraphPeers !== [] ? $this->graphChart->legend($walletGraphPeers) : [],
             'walletGraphPending' => (bool) ($walletGraph['pending'] ?? false),
             'signerRows' => $isWalletReport && $hasOnchain ? $this->signerRows($check, $onchain) : [],
             'controlNarrative' => $isWalletReport && $hasOnchain ? $this->controlNarrative($check, $onchain) : '',

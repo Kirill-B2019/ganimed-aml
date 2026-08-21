@@ -367,16 +367,43 @@
         @endif
         @if (! empty($walletGraphSvg))
             <div>{!! $walletGraphSvg !!}</div>
+            @if (! empty($walletGraphLegend))
             <p class="muted">
-                {{ __('aml.graph_edge_in') }} ·
-                {{ __('aml.graph_edge_out') }} ·
-                {{ __('aml.graph_kind_eoa') }} ·
-                {{ __('aml.graph_kind_contract') }} ·
-                {{ __('aml.graph_kind_token') }} ·
-                {{ __('aml.graph_kind_dust') }} ·
-                {{ __('aml.graph_kind_spam') }} ·
-                {{ __('aml.graph_kind_unknown') }}
+                @foreach ($walletGraphLegend as $kind => $color)
+                    {{ __('aml.graph_kind_'.$kind) }}@if (! $loop->last) · @endif
+                @endforeach
             </p>
+            @endif
+            @if (! empty($walletGraphPeers))
+            <table class="sheet">
+                <thead>
+                    <tr>
+                        <th>{{ __('aml.graph_peer') }}</th>
+                        <th>{{ __('aml.graph_peer_status') }}</th>
+                        <th>{{ __('aml.graph_peer_assets') }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($walletGraphPeers as $peer)
+                        <tr>
+                            <td class="mono">
+                                @if (! empty($peer['explorer']))
+                                    <a href="{{ $peer['explorer'] }}">{{ $peer['id'] }}</a>
+                                @else
+                                    {{ $peer['id'] }}
+                                @endif
+                            </td>
+                            <td>
+                                @foreach ($peer['status'] as $status)
+                                    {{ __('aml.graph_kind_'.$status) }}@if (! $loop->last), @endif
+                                @endforeach
+                            </td>
+                            <td>{{ $peer['assets'] !== '' ? $peer['assets'] : '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+            @endif
             @if (! empty($walletGraph['truncated']))
                 <p class="muted">{{ __('aml.graph_truncated') }}</p>
             @endif
@@ -423,10 +450,11 @@
             </thead>
             <tbody>
                 @foreach ($inflowRows as $row)
+                    @php($fromHref = $row['explorer'] ?? \App\Support\TronAddress::explorerUrl((string) ($row['from'] ?? '')))
                     <tr class="{{ ! empty($row['tone']) ? 'row-'.$row['tone'] : '' }}">
                         <td class="mono">
-                            @if (! empty($row['explorer']))
-                                <a href="{{ $row['explorer'] }}">{{ $row['from'] }}</a>
+                            @if ($fromHref)
+                                <a href="{{ $fromHref }}">{{ $row['from'] }}</a>
                             @else
                                 {{ $row['from'] }}
                             @endif
@@ -461,10 +489,11 @@
             </thead>
             <tbody>
                 @foreach ($outflowRows as $row)
+                    @php($toHref = $row['explorer'] ?? \App\Support\TronAddress::explorerUrl((string) ($row['to'] ?? '')))
                     <tr class="{{ ! empty($row['tone']) ? 'row-'.$row['tone'] : '' }}">
                         <td class="mono">
-                            @if (! empty($row['explorer']))
-                                <a href="{{ $row['explorer'] }}">{{ $row['to'] }}</a>
+                            @if ($toHref)
+                                <a href="{{ $toHref }}">{{ $row['to'] }}</a>
                             @else
                                 {{ $row['to'] }}
                             @endif
@@ -477,8 +506,6 @@
             </tbody>
         </table>
         @endif
-            </tbody>
-        </table>
         @endif
     @endif
 </body>

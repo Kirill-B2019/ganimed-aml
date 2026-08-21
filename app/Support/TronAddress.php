@@ -14,7 +14,17 @@ class TronAddress
 
     public static function explorerUrl(string $address): ?string
     {
-        if (! self::isTron($address)) {
+        $address = trim($address);
+        if ($address === '' || strcasecmp($address, 'unknown') === 0) {
+            return null;
+        }
+
+        $hex = strtolower(ltrim($address, '0x'));
+        if (str_starts_with($hex, '41') && ctype_xdigit($hex) && strlen($hex) >= 42) {
+            $address = self::fromHex($hex);
+        }
+
+        if (! self::isTron($address) && ! str_starts_with($address, 'T')) {
             return null;
         }
 

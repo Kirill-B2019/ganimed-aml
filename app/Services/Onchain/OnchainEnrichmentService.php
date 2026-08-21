@@ -594,7 +594,7 @@ class OnchainEnrichmentService
                     }
                 }
                 $hygiene = (string) ($edge['hygiene'] ?? '');
-                if ($hygiene === 'dust' && ! in_array('dust', $flags, true)) {
+                if (($hygiene === 'dust' || ! empty($edge['any_dust'])) && ! in_array('dust', $flags, true)) {
                     $flags[] = 'dust';
                 }
                 if ($hygiene === 'spam' && ! in_array('spam', $flags, true)) {
@@ -641,16 +641,19 @@ class OnchainEnrichmentService
                 continue;
             }
             $key = ($edge['from'] ?? '').'|'.($edge['to'] ?? '').'|'.($edge['asset'] ?? '').'|'.($edge['direction'] ?? '');
+            $wasDust = ((string) ($edge['hygiene'] ?? '')) === 'dust' || ! empty($edge['any_dust']);
             if (! isset($groups[$key])) {
                 $groups[$key] = $edge;
                 $groups[$key]['count'] = (int) ($edge['count'] ?? 1);
                 $groups[$key]['raw'] = (string) ($edge['raw'] ?? '0');
+                $groups[$key]['any_dust'] = $wasDust;
             } else {
                 $groups[$key]['count'] += (int) ($edge['count'] ?? 1);
                 $groups[$key]['raw'] = $this->addDecimalStrings(
                     (string) ($groups[$key]['raw'] ?? '0'),
                     (string) ($edge['raw'] ?? '0'),
                 );
+                $groups[$key]['any_dust'] = ! empty($groups[$key]['any_dust']) || $wasDust;
             }
         }
 
@@ -662,6 +665,9 @@ class OnchainEnrichmentService
                 (string) ($group['contract'] ?? ''),
                 (string) ($group['name'] ?? ''),
             );
+            if ($group['hygiene'] === 'dust') {
+                $group['any_dust'] = true;
+            }
         }
         unset($group);
 

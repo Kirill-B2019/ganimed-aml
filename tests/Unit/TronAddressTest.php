@@ -14,6 +14,19 @@ class TronAddressTest extends TestCase
         $this->assertFalse(TronAddress::isTron('0x408e41876cccdc0f92210600ef50372656052a38'));
     }
 
+    public function test_explorer_url_uses_tronscan(): void
+    {
+        $this->assertSame(
+            'https://tronscan.org/#/address/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            TronAddress::explorerUrl('TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk'),
+        );
+        $this->assertSame(
+            'https://tronscan.org/#/address/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            TronAddress::explorerUrl('4140497af024c1d8ca00848de32d1d3dc4ef652598'),
+        );
+        $this->assertNull(TronAddress::explorerUrl('0x408e41876cccdc0f92210600ef50372656052a38'));
+    }
+
     public function test_converts_hex_to_base58(): void
     {
         $this->assertSame(

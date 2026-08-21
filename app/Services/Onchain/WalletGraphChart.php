@@ -8,23 +8,23 @@ use App\Support\TronAddress;
 class WalletGraphChart
 {
     /** @var array<string, string> */
-    private const COLORS = [
+    public const COLORS = [
         'subject' => '#111827',
         'eoa' => '#6366f1',
         'contract' => '#0f766e',
         'token' => '#4f46e5',
         'spam' => '#be123c',
         'dust' => '#d97706',
-        'unknown' => '#64748b',
-        'in' => '#6366f1',
-        'out' => '#0f766e',
-        'internal' => '#94a3b8',
+        'unknown' => '#94a3b8',
+        'in' => '#c7d2fe',
+        'out' => '#99f6e4',
+        'internal' => '#e2e8f0',
     ];
 
     /**
      * @param  array<string, mixed>  $graph
      */
-    public function svg(array $graph, int $width = 640, int $height = 400): string
+    public function svg(array $graph, int $width = 720, int $height = 520): string
     {
         $nodes = is_array($graph['nodes'] ?? null) ? $graph['nodes'] : [];
         $edges = is_array($graph['edges'] ?? null) ? $graph['edges'] : [];
@@ -54,17 +54,17 @@ class WalletGraphChart
         }
 
         $placed = [];
-        $markup = '';
         foreach ($hop1 as $i => $node) {
-            $placed[(string) $node['id']] = $this->ringPoint($cx, $cy, 150, 95, $i, max(count($hop1), 1), -90);
+            $placed[(string) $node['id']] = $this->ringPoint($cx, $cy, 180, 135, $i, max(count($hop1), 1), -90);
         }
         foreach ($hop2 as $i => $node) {
-            $placed[(string) $node['id']] = $this->ringPoint($cx, $cy, 250, 150, $i, max(count($hop2), 1), -75);
+            $placed[(string) $node['id']] = $this->ringPoint($cx, $cy, 236, 180, $i, max(count($hop2), 1), -75);
         }
         if (is_array($subject) && ! empty($subject['id'])) {
             $placed[(string) $subject['id']] = [$cx, $cy];
         }
 
+        $markup = '';
         foreach ($edges as $edge) {
             if (! is_array($edge)) {
                 continue;
@@ -74,23 +74,28 @@ class WalletGraphChart
             if (! isset($placed[$from], $placed[$to])) {
                 continue;
             }
-            $direction = (string) ($edge['direction'] ?? 'in');
             $hygiene = (string) ($edge['hygiene'] ?? '');
+            $direction = (string) ($edge['direction'] ?? 'in');
             $color = match (true) {
                 $hygiene === 'spam' => self::COLORS['spam'],
-                $hygiene === 'dust' => self::COLORS['dust'],
+                $hygiene === 'dust' || ! empty($edge['any_dust']) => self::COLORS['dust'],
                 default => self::COLORS[$direction] ?? self::COLORS['in'],
             };
-            $x1 = $placed[$from][0];
-            $y1 = $placed[$from][1];
-            $x2 = $placed[$to][0];
-            $y2 = $placed[$to][1];
-            $markup .= $this->edge($x1, $y1, $x2, $y2, $color);
-            $markup .= $this->edgeLabel(($x1 + $x2) / 2, ($y1 + $y2) / 2, $this->edgeCaption($edge), $color);
+            $widthStroke = ($hygiene === 'spam' || $hygiene === 'dust' || ! empty($edge['any_dust'])) ? '2.4' : '1.4';
+            $markup .= sprintf(
+                '<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="%s" stroke-width="%s" pointer-events="none"/>',
+                $placed[$from][0],
+                $placed[$from][1],
+                $placed[$to][0],
+                $placed[$to][1],
+                $color,
+                $widthStroke
+            );
         }
 
         foreach (array_merge($hop2, $hop1) as $node) {
-            $markup .= $this->nodeMarkup($node, $placed[(string) $node['id']] ?? [$cx, $cy]);
+            $id = (string) $node['id'];
+            $markup .= $this->nodeMarkup($node, $placed[$id] ?? [$cx, $cy], false);
         }
         if (is_array($subject)) {
             $markup .= $this->nodeMarkup($subject, [$cx, $cy], true);
@@ -102,52 +107,111 @@ class WalletGraphChart
     }
 
     /**
+     * @param  array<string, mixed>  $graph
+     * @return list<array<string, mixed>>
+     */
+    public function peers(array $graph): array
+    {
+        $nodes = is_array($graph['nodes'] ?? null) ? $graph['nodes'] : [];
+        $edges = is_array($graph['edges'] ?? null) ? $graph['edges'] : [];
+        $assets = [];
+        foreach ($edges as $edge) {
+            if (! is_array($edge)) {
+                continue;
+            }
+            foreach (['from', 'to'] as $side) {
+                $id = (string) ($edge[$side] ?? '');
+                if ($id === '') {
+                    continue;
+                }
+                $label = $this->edgeAssetLabel($edge);
+                if ($label === '') {
+                    continue;
+                }
+                $assets[$id][$label] = true;
+            }
+        }
+
+        $rows = [];
+        foreach ($nodes as $node) {
+            if (! is_array($node) || empty($node['id']) || (int) ($node['hop'] ?? 1) === 0) {
+                continue;
+            }
+            $id = (string) $node['id'];
+            $kind = (string) ($node['kind'] ?? 'unknown');
+            $flags = is_array($node['flags'] ?? null) ? $node['flags'] : [];
+            $tone = $this->toneKey($kind, $flags);
+            $rows[] = [
+                'id' => $id,
+                'short' => $this->shortId($id),
+                'explorer' => TronAddress::explorerUrl($id),
+                'color' => $this->fillColor($kind, $flags, false),
+                'tone' => $tone,
+                'status' => $this->statusParts($kind, $flags),
+                'in_count' => (int) ($node['in_count'] ?? 0),
+                'out_count' => (int) ($node['out_count'] ?? 0),
+                'assets' => implode(', ', array_keys($assets[$id] ?? [])),
+                'hop' => (int) ($node['hop'] ?? 1),
+            ];
+        }
+
+        usort($rows, function (array $a, array $b) {
+            $rank = ['spam' => 0, 'dust' => 1, 'contract' => 2, 'token' => 3, 'eoa' => 4, 'unknown' => 5];
+
+            return ($rank[$a['tone']] ?? 9) <=> ($rank[$b['tone']] ?? 9)
+                ?: ($b['in_count'] + $b['out_count']) <=> ($a['in_count'] + $a['out_count']);
+        });
+
+        return $rows;
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $peers
+     * @return array<string, string>
+     */
+    public function legend(array $peers): array
+    {
+        $present = [];
+        foreach ($peers as $peer) {
+            if (! is_array($peer)) {
+                continue;
+            }
+            $tone = (string) ($peer['tone'] ?? '');
+            if ($tone !== '') {
+                $present[$tone] = true;
+            }
+        }
+
+        $out = [];
+        foreach (['spam', 'dust', 'contract', 'token', 'eoa', 'unknown'] as $key) {
+            if ($key === 'spam' || $key === 'dust' || isset($present[$key])) {
+                $out[$key] = self::COLORS[$key];
+            }
+        }
+
+        return $out;
+    }
+
+    /**
      * @param  array<string, mixed>  $node
      * @param  array{0: float, 1: float}  $pos
      */
-    private function nodeMarkup(array $node, array $pos, bool $center = false): string
+    private function nodeMarkup(array $node, array $pos, bool $center): string
     {
         $id = (string) ($node['id'] ?? '');
         $kind = (string) ($node['kind'] ?? 'unknown');
         $flags = is_array($node['flags'] ?? null) ? $node['flags'] : [];
-        $fill = $this->nodeColor($kind, $flags, $center);
-        $r = $center ? 18 : (((int) ($node['hop'] ?? 1)) >= 2 ? 8 : 10);
+        $fill = $this->fillColor($kind, $flags, $center);
+        $r = $center ? 20 : (((int) ($node['hop'] ?? 1)) >= 2 ? 10 : 14);
         $url = TronAddress::explorerUrl($id);
-        $status = $this->statusCaption($kind, $flags);
-        $flow = $this->flowCaption($node);
-        $label = $this->shortId($id);
-        $statusColor = in_array('spam', $flags, true)
-            ? self::COLORS['spam']
-            : (in_array('dust', $flags, true) ? self::COLORS['dust'] : '#374151');
-
         $inner = sprintf(
-            '<circle cx="%s" cy="%s" r="%s" fill="%s"/>',
+            '<title>%s</title><circle cx="%s" cy="%s" r="%s" fill="%s" stroke="#fff" stroke-width="2"/>',
+            htmlspecialchars($id, ENT_QUOTES | ENT_XML1, 'UTF-8'),
             $pos[0],
             $pos[1],
             $r,
             $fill
         );
-        $inner .= sprintf(
-            '<text x="%s" y="%s" text-anchor="middle" font-size="10" fill="#111827">%s</text>',
-            $pos[0],
-            $pos[1] + $r + 12,
-            htmlspecialchars($label, ENT_QUOTES | ENT_XML1, 'UTF-8')
-        );
-        $inner .= sprintf(
-            '<text x="%s" y="%s" text-anchor="middle" font-size="8" fill="%s">%s</text>',
-            $pos[0],
-            $pos[1] + $r + 24,
-            $statusColor,
-            htmlspecialchars($status, ENT_QUOTES | ENT_XML1, 'UTF-8')
-        );
-        if ($flow !== '') {
-            $inner .= sprintf(
-                '<text x="%s" y="%s" text-anchor="middle" font-size="8" fill="#6b7280">%s</text>',
-                $pos[0],
-                $pos[1] + $r + 35,
-                htmlspecialchars($flow, ENT_QUOTES | ENT_XML1, 'UTF-8')
-            );
-        }
 
         if ($url === null) {
             return $inner;
@@ -164,7 +228,7 @@ class WalletGraphChart
     /**
      * @param  list<string>  $flags
      */
-    private function nodeColor(string $kind, array $flags, bool $center): string
+    public function fillColor(string $kind, array $flags, bool $center): string
     {
         if ($center) {
             return self::COLORS['subject'];
@@ -182,48 +246,46 @@ class WalletGraphChart
     /**
      * @param  list<string>  $flags
      */
-    private function statusCaption(string $kind, array $flags): string
+    private function toneKey(string $kind, array $flags): string
+    {
+        if (in_array('spam', $flags, true) || $kind === 'spam') {
+            return 'spam';
+        }
+        if (in_array('dust', $flags, true)) {
+            return 'dust';
+        }
+        if (in_array($kind, ['eoa', 'contract', 'token', 'unknown'], true)) {
+            return $kind;
+        }
+
+        return 'unknown';
+    }
+
+    /**
+     * @param  list<string>  $flags
+     * @return list<string>
+     */
+    private function statusParts(string $kind, array $flags): array
     {
         $parts = [];
         $kindKey = in_array($kind, ['eoa', 'contract', 'token', 'spam', 'unknown'], true) ? $kind : 'unknown';
         if ($kindKey !== 'spam') {
-            $parts[] = __('aml.graph_kind_'.$kindKey);
+            $parts[] = $kindKey;
         }
         if (in_array('dust', $flags, true)) {
-            $parts[] = __('aml.graph_kind_dust');
+            $parts[] = 'dust';
         }
         if (in_array('spam', $flags, true) || $kind === 'spam') {
-            $parts[] = __('aml.graph_kind_spam');
+            $parts[] = 'spam';
         }
 
-        return implode(' · ', array_unique($parts));
-    }
-
-    /**
-     * @param  array<string, mixed>  $node
-     */
-    private function flowCaption(array $node): string
-    {
-        $in = (int) ($node['in_count'] ?? 0);
-        $out = (int) ($node['out_count'] ?? 0);
-        if ($in < 1 && $out < 1) {
-            return '';
-        }
-        $bits = [];
-        if ($in > 0) {
-            $bits[] = __('aml.graph_edge_in').' '.$in;
-        }
-        if ($out > 0) {
-            $bits[] = __('aml.graph_edge_out').' '.$out;
-        }
-
-        return implode(' · ', $bits);
+        return array_values(array_unique($parts));
     }
 
     /**
      * @param  array<string, mixed>  $edge
      */
-    private function edgeCaption(array $edge): string
+    private function edgeAssetLabel(array $edge): string
     {
         $asset = (string) ($edge['asset'] ?? '');
         $count = (int) ($edge['count'] ?? 1);
@@ -235,7 +297,7 @@ class WalletGraphChart
             return $asset.'×'.$count;
         }
 
-        return $asset !== '' ? $asset : (string) ($edge['direction'] ?? '');
+        return $asset;
     }
 
     /**
@@ -246,29 +308,6 @@ class WalletGraphChart
         $angle = deg2rad($startDeg + ($i * 360 / $n));
 
         return [$cx + $rx * cos($angle), $cy + $ry * sin($angle)];
-    }
-
-    private function edge(float $x1, float $y1, float $x2, float $y2, string $color): string
-    {
-        return sprintf(
-            '<line x1="%s" y1="%s" x2="%s" y2="%s" stroke="%s" stroke-width="1.5" pointer-events="none"/>',
-            $x1,
-            $y1,
-            $x2,
-            $y2,
-            $color
-        );
-    }
-
-    private function edgeLabel(float $x, float $y, string $text, string $color): string
-    {
-        return sprintf(
-            '<text x="%s" y="%s" text-anchor="middle" font-size="8" fill="%s" pointer-events="none">%s</text>',
-            $x,
-            $y - 4,
-            $color,
-            htmlspecialchars($text, ENT_QUOTES | ENT_XML1, 'UTF-8')
-        );
     }
 
     private function shortId(string $id): string

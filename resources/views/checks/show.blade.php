@@ -472,12 +472,8 @@
                                             };
                                         @endphp
                                         <tr class="border-t border-ink-line align-top {{ $rowBg }}">
-                                            <td class="py-2 pr-3 font-mono text-[11px] break-all">
-                                                @if (! empty($row['explorer']))
-                                                    <a href="{{ $row['explorer'] }}" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline decoration-indigo-200 hover:text-ink">{{ $row['from'] }}</a>
-                                                @else
-                                                    <span class="text-ink-muted">{{ $row['from'] }}</span>
-                                                @endif
+                                            <td class="py-2 pr-3">
+                                                <x-tronscan-link :address="$row['from'] ?? ''" />
                                             </td>
                                             <td class="py-2 pr-3">{{ $row['symbol'] }}</td>
                                             <td class="py-2 pr-3 font-mono text-right">{{ $row['amount'] }}</td>
@@ -517,12 +513,8 @@
                                             };
                                         @endphp
                                         <tr class="border-t border-ink-line align-top {{ $rowBg }}">
-                                            <td class="py-2 pr-3 font-mono text-[11px] break-all">
-                                                @if (! empty($row['explorer']))
-                                                    <a href="{{ $row['explorer'] }}" target="_blank" rel="noopener noreferrer" class="text-indigo-700 underline decoration-indigo-200 hover:text-ink">{{ $row['to'] }}</a>
-                                                @else
-                                                    <span class="text-ink-muted">{{ $row['to'] }}</span>
-                                                @endif
+                                            <td class="py-2 pr-3">
+                                                <x-tronscan-link :address="$row['to'] ?? ''" />
                                             </td>
                                             <td class="py-2 pr-3">{{ $row['symbol'] }}</td>
                                             <td class="py-2 pr-3 font-mono text-right">{{ $row['amount'] }}</td>

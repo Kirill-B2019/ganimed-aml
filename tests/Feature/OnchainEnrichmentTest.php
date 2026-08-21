@@ -133,6 +133,9 @@ class OnchainEnrichmentTest extends TestCase
                     ['symbol' => 'TRX', 'amount' => '828.28', 'name' => 'TRON', 'kind' => 'native'],
                     ['symbol' => 'USDT', 'amount' => '10', 'name' => 'Tether USD', 'contract' => 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', 'kind' => 'trc20'],
                 ],
+                'inflows' => [
+                    ['from' => 'TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ', 'symbol' => 'USDT', 'amount' => '10', 'tx_count' => 1, 'contract' => 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', 'name' => 'Tether USD'],
+                ],
             ],
         ]);
 
@@ -149,7 +152,9 @@ class OnchainEnrichmentTest extends TestCase
             ->assertSee('Баланс кошелька, USD', false)
             ->assertSee('$109.39', false)
             ->assertSee('https://tronscan.org/#/address/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk', false)
+            ->assertSee('https://tronscan.org/#/address/TM9QC18oJUowYyAiYtE1ZYEvyhPHnzxXXQ', false)
             ->assertSee('target="_blank"', false)
+            ->assertSee('Связи поступлений', false)
             ->assertDontSee('Файл: на проверку', false);
     }
 
@@ -546,10 +551,83 @@ class OnchainEnrichmentTest extends TestCase
         $svg = app(WalletGraphChart::class)->svg($result['graph']);
         $this->assertStringContainsString('tronscan.org/#/address/', $svg);
         $this->assertStringContainsString('target="_blank"', $svg);
-        $this->assertStringContainsString(__('aml.graph_kind_dust'), $svg);
-        $this->assertStringContainsString(__('aml.graph_kind_spam'), $svg);
+        $this->assertStringContainsString('#be123c', $svg);
+        $this->assertStringContainsString('#d97706', $svg);
+        $this->assertStringNotContainsString('USDT×', $svg);
+        $this->assertStringNotContainsString('…', $svg);
+
+        $peers = app(WalletGraphChart::class)->peers($result['graph']);
+        $this->assertTrue(collect($peers)->contains(fn ($row) => in_array('spam', $row['status'] ?? [], true)));
+        $this->assertTrue(collect($peers)->contains(fn ($row) => in_array('dust', $row['status'] ?? [], true)));
+
+        $html = view('checks.partials.inflow-graph', [
+            'walletGraphSvg' => $svg,
+            'walletGraphPeers' => $peers,
+            'walletGraphLegend' => app(WalletGraphChart::class)->legend($peers),
+            'walletGraph' => $result['graph'],
+            'walletGraphPending' => false,
+        ])->render();
+        $this->assertStringContainsString(__('aml.graph_peers'), $html);
+        $this->assertStringContainsString(__('aml.graph_peer'), $html);
+        $this->assertStringContainsString('tronscan.org/#/address/', $html);
 
         Http::assertNotSent(fn ($request) => str_contains($request->url(), 'TYgh8XECsuM9sieDKQxbBjmAFpfVPhTUjL')
             && ! str_contains($request->url(), 'transactions'));
+    }
+
+    public function test_graph_keeps_dust_flag_when_trx_sum_exceeds_threshold(): void
+    {
+        $peerHex = '41c12276056787e8e6395a040e051ad516cd96898c';
+        $subjectHex = '4140497af024c1d8ca00848de32d1d3dc4ef652598';
+        $trx = function (int $amount) use ($peerHex, $subjectHex) {
+            return [
+                'txID' => 'tx-'.$amount,
+                'block_timestamp' => 1700000000000,
+                'raw_data' => [
+                    'contract' => [[
+                        'type' => 'TransferContract',
+                        'parameter' => [
+                            'value' => [
+                                'amount' => $amount,
+                                'owner_address' => $peerHex,
+                                'to_address' => $subjectHex,
+                            ],
+                        ],
+                    ]],
+                ],
+            ];
+        };
+
+        Http::fake([
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/internal-transactions*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions/trc20*' => Http::response(['data' => []]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk/transactions?*' => Http::response([
+                'data' => [$trx(2), $trx(1000000)],
+            ]),
+            'https://api.trongrid.io/v1/accounts/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk' => Http::response([
+                'data' => [['balance' => 0, 'trc20' => [], 'owner_permission' => ['threshold' => 1, 'keys' => []]]],
+            ]),
+        ]);
+
+        $result = app(OnchainEnrichmentService::class)->forAddress(
+            'TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk',
+            'tron',
+        );
+
+        $edge = collect($result['graph']['edges'])->first(
+            fn ($row) => ($row['asset'] ?? '') === 'TRX' && (int) ($row['count'] ?? 0) >= 2
+        );
+        $this->assertNotNull($edge);
+        $this->assertSame('trx', $edge['hygiene'] ?? null);
+        $this->assertTrue((bool) ($edge['any_dust'] ?? false));
+
+        $dustNode = collect($result['graph']['nodes'])->first(
+            fn ($node) => in_array('dust', $node['flags'] ?? [], true) && (int) ($node['hop'] ?? 1) === 1
+        );
+        $this->assertNotNull($dustNode);
+
+        $svg = app(WalletGraphChart::class)->svg($result['graph']);
+        $this->assertStringContainsString('#d97706', $svg);
+        $this->assertStringNotContainsString('…', $svg);
     }
 }
