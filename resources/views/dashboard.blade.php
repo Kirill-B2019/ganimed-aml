@@ -2,8 +2,8 @@
 <x-app-layout :title="__('aml.dashboard')">
     <x-slot name="header">
         <div>
-            <h1 class="text-2xl font-semibold text-slate-900">{{ __('aml.dashboard') }}</h1>
-            <p class="mt-1 text-sm text-slate-500">{{ __('aml.period') }}: {{ $from }} — {{ $to }}</p>
+            <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ __('aml.dashboard') }}</h1>
+            <p class="mt-1 text-sm text-ink-muted">{{ __('aml.period') }}: {{ $from }} — {{ $to }}</p>
         </div>
     </x-slot>
 
@@ -31,10 +31,10 @@
 
             <x-report-section :title="__('aml.latest_checks')">
                 @if ($latest->isEmpty())
-                    <div class="py-8 text-center space-y-3">
-                        <p class="text-slate-500 text-sm">{{ __('aml.no_checks') }}</p>
-                        <p class="text-slate-500 text-sm">{{ __('aml.empty_cta') }}</p>
-                        <a href="{{ route('checks.create') }}" class="inline-flex items-center px-4 py-2 bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700">{{ __('aml.start_first') }}</a>
+                    <div class="py-6 text-center space-y-3">
+                        <p class="text-ink-muted text-sm">{{ __('aml.no_checks') }}</p>
+                        <p class="text-ink-muted text-sm">{{ __('aml.empty_cta') }}</p>
+                        <a href="{{ route('checks.create') }}" class="inline-flex items-center px-4 py-2 bg-ink text-sm font-medium text-white hover:bg-ink-soft">{{ __('aml.start_first') }}</a>
                     </div>
                 @else
                     <div class="overflow-x-auto">
@@ -51,18 +51,18 @@
                                 @foreach ($latest as $check)
                                     <tr>
                                         <td class="font-mono">
-                                            <a class="text-indigo-700 hover:text-indigo-900" href="{{ route('checks.show', $check) }}">{{ \Illuminate\Support\Str::limit($check->subject, 28) }}</a>
+                                            <a class="ui-link" href="{{ route('checks.show', $check) }}">{{ \Illuminate\Support\Str::limit($check->subject, 28) }}</a>
                                         </td>
                                         <td>{{ $check->type->label() }}</td>
                                         <td><x-verdict-badge :verdict="$check->verdict" /></td>
-                                        <td class="text-slate-500 whitespace-nowrap">{{ $check->created_at->diffForHumans() }}</td>
+                                        <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at->diffForHumans() }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>
                         </table>
                     </div>
                     <div class="pt-3">
-                        <a href="{{ route('checks.index') }}" class="text-sm text-indigo-700 hover:text-indigo-900">{{ __('aml.view_all') }}</a>
+                        <a href="{{ route('checks.index') }}" class="text-sm ui-link">{{ __('aml.view_all') }}</a>
                     </div>
                 @endif
             </x-report-section>

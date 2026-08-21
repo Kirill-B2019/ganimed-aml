@@ -8,15 +8,62 @@
         display: none !important;
     }
 
+    html {
+        color-scheme: light;
+    }
+
     :focus-visible {
-        outline: 2px solid #4f46e5;
+        outline: 2px solid #0C0C0D;
         outline-offset: 2px;
+    }
+
+    input[type='text'],
+    input[type='email'],
+    input[type='password'],
+    input[type='date'],
+    input[type='search'],
+    input[type='url'],
+    textarea,
+    select {
+        border-radius: 0;
     }
 }
 
 @layer components {
     .page {
-        @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+        @apply mx-auto w-full max-w-page px-4 sm:px-6 lg:px-8;
+    }
+
+    .ui-panel {
+        @apply border border-ink-line bg-white p-5;
+    }
+
+    .ui-link {
+        @apply text-ink underline decoration-ink-line underline-offset-2 hover:decoration-ink;
+    }
+
+    .ui-select {
+        @apply rounded-none border-ink-line bg-white text-ink focus:border-ink focus:ring-ink;
+    }
+
+    .ui-alert {
+        @apply border px-4 py-3 text-sm leading-6;
+    }
+
+    .ui-alert-success {
+        @apply border-emerald-700/20 bg-emerald-50 text-emerald-950;
+    }
+
+    .ui-alert-warning {
+        @apply border-amber-700/20 bg-amber-50 text-amber-950;
+    }
+
+    .ui-alert-danger {
+        @apply border-rose-700/20 bg-rose-50 text-rose-950;
+    }
+
+    .ui-alert-info {
+        @apply border-ink-line bg-white text-ink;
     }
 
     .ui-table {
@@ -24,7 +71,7 @@
     }
 
     .ui-table thead th {
-        @apply pb-2 pr-3 text-left text-xs font-medium text-slate-500;
+        @apply pb-2 pr-3 text-left text-[11px] font-medium uppercase tracking-[0.08em] text-ink-muted;
     }
 
     .ui-table tbody td {
@@ -32,22 +79,34 @@
     }
 
     .ui-table tbody tr {
-        @apply border-t border-slate-100;
+        @apply border-t border-ink-line;
     }
 
     .ui-table tbody tr:hover {
-        @apply bg-slate-50;
+        @apply bg-ink-paper;
     }
 
     .locale-switch {
-        @apply inline-flex items-center border border-slate-200 text-xs;
+        @apply inline-flex items-center border border-ink-line text-[11px] font-medium tracking-[0.08em];
     }
 
     .locale-switch a {
-        @apply px-2 py-1 text-slate-400 hover:text-slate-800;
+        @apply px-2 py-1 text-ink-muted hover:text-ink;
     }
 
     .locale-switch a[aria-current='true'] {
-        @apply bg-slate-900 text-white;
+        @apply bg-ink text-white;
+    }
+
+    .nav-ink .locale-switch {
+        @apply border-white/20;
+    }
+
+    .nav-ink .locale-switch a {
+        @apply text-white/55 hover:text-white;
+    }
+
+    .nav-ink .locale-switch a[aria-current='true'] {
+        @apply bg-white text-ink;
     }
 }

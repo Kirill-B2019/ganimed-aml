@@ -21,7 +21,7 @@ $width = match ($width) {
 
     <div x-show="open"
             x-cloak
-            class="absolute z-50 mt-1 {{ $width }} border border-slate-200 {{ $alignmentClasses }}"
+            class="absolute z-50 mt-1 {{ $width }} border border-ink-line bg-white {{ $alignmentClasses }}"
             style="display: none;"
             @click="open = false">
         <div class="{{ $contentClasses }}">

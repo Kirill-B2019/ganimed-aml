@@ -1,16 +1,16 @@
 {{-- | KB @CerberRus00 - Nexus Invest Team --}}
 <x-app-layout :title="__('aml.users')">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold text-slate-900">{{ __('aml.users') }}</h1>
+        <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ __('aml.users') }}</h1>
     </x-slot>
 
     <div class="py-8">
         <div class="page space-y-6">
             @if (session('status'))
-                <div class="border border-emerald-200 bg-emerald-50 text-emerald-800 p-3">{{ session('status') }}</div>
+                <div class="ui-alert ui-alert-success">{{ session('status') }}</div>
             @endif
 
-            <form method="POST" action="{{ route('users.store') }}" class="grid md:grid-cols-2 gap-4 border border-slate-200 p-4">
+            <form method="POST" action="{{ route('users.store') }}" class="grid md:grid-cols-2 gap-4 ui-panel">
                 @csrf
                 <div>
                     <x-input-label for="name" :value="__('aml.name')" />

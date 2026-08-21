@@ -4,8 +4,8 @@
 
     <form method="POST" action="{{ route('login') }}">
         @csrf
-        <h1 class="text-lg font-semibold text-slate-900">{{ __('aml.log_in') }}</h1>
-        <p class="mt-1 mb-5 text-sm text-slate-500">{{ __('aml.sign_in_hint') }}</p>
+        <h1 class="text-lg font-semibold tracking-tight text-ink">{{ __('aml.log_in') }}</h1>
+        <p class="mt-1 mb-5 text-sm text-ink-muted">{{ __('aml.sign_in_hint') }}</p>
 
         <div>
             <x-input-label for="email" :value="__('aml.email')" />
@@ -20,8 +20,8 @@
         </div>
 
         <label for="remember_me" class="mt-4 inline-flex items-center">
-            <input id="remember_me" type="checkbox" class="border-slate-300 text-indigo-600 focus:ring-indigo-600" name="remember">
-            <span class="ms-2 text-sm text-slate-600">{{ __('aml.remember_me') }}</span>
+            <input id="remember_me" type="checkbox" class="rounded-none border-ink-line text-ink focus:ring-ink" name="remember">
+            <span class="ms-2 text-sm text-ink-muted">{{ __('aml.remember_me') }}</span>
         </label>
 
         <div class="mt-5">

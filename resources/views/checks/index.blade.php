@@ -1,7 +1,7 @@
 {{-- | KB @CerberRus00 - Nexus Invest Team --}}
 <x-app-layout :title="__('aml.history')">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold text-slate-900">{{ __('aml.history') }}</h1>
+        <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ __('aml.history') }}</h1>
     </x-slot>
 
     <div class="py-8">
@@ -13,7 +13,7 @@
                 </div>
                 <div>
                     <x-input-label for="type" :value="__('aml.type')" />
-                    <select id="type" name="type" class="mt-1 w-full border-slate-300 focus:border-indigo-600 focus:ring-indigo-600">
+                    <select id="type" name="type" class="ui-select mt-1 w-full">
                         <option value="">{{ __('aml.all_types') }}</option>
                         @foreach (\App\Enums\CheckType::cases() as $type)
                             <option value="{{ $type->value }}" @selected(request('type') === $type->value)>{{ $type->label() }}</option>
@@ -22,7 +22,7 @@
                 </div>
                 <div>
                     <x-input-label for="verdict" :value="__('aml.verdict')" />
-                    <select id="verdict" name="verdict" class="mt-1 w-full border-slate-300 focus:border-indigo-600 focus:ring-indigo-600">
+                    <select id="verdict" name="verdict" class="ui-select mt-1 w-full">
                         <option value="">{{ __('aml.all_verdicts') }}</option>
                         @foreach (\App\Enums\CheckVerdict::cases() as $verdict)
                             <option value="{{ $verdict->value }}" @selected(request('verdict') === $verdict->value)>{{ $verdict->label() }}</option>
@@ -31,7 +31,7 @@
                 </div>
                 <div>
                     <x-input-label for="status" :value="__('aml.status')" />
-                    <select id="status" name="status" class="mt-1 w-full border-slate-300 focus:border-indigo-600 focus:ring-indigo-600">
+                    <select id="status" name="status" class="ui-select mt-1 w-full">
                         <option value="">{{ __('aml.all_statuses') }}</option>
                         @foreach (\App\Enums\CheckStatus::cases() as $status)
                             <option value="{{ $status->value }}" @selected(request('status') === $status->value)>{{ $status->label() }}</option>
@@ -52,7 +52,7 @@
                 </div>
             </form>
 
-            <div class="overflow-x-auto">
+            <div class="ui-panel overflow-x-auto">
                 <table class="ui-table">
                     <thead>
                         <tr>
@@ -68,19 +68,19 @@
                         @forelse ($checks as $check)
                             <tr>
                                 <td class="font-mono">
-                                    <a class="text-indigo-700 hover:text-indigo-900" href="{{ route('checks.show', $check) }}">{{ \Illuminate\Support\Str::limit($check->subject, 36) }}</a>
+                                    <a class="ui-link" href="{{ route('checks.show', $check) }}">{{ \Illuminate\Support\Str::limit($check->subject, 36) }}</a>
                                 </td>
                                 <td>{{ $check->type->label() }}</td>
                                 <td>{{ $check->status->label() }}</td>
                                 <td><x-verdict-badge :verdict="$check->verdict" /></td>
-                                <td class="font-mono text-slate-600">{{ $check->risk_score ?? '—' }}</td>
-                                <td class="text-slate-500 whitespace-nowrap">{{ $check->created_at }}</td>
+                                <td class="font-mono text-ink-muted tabular-nums">{{ $check->risk_score ?? '—' }}</td>
+                                <td class="text-ink-muted whitespace-nowrap">{{ $check->created_at }}</td>
                             </tr>
                         @empty
                             <tr>
                                 <td colspan="6" class="py-10 text-center">
-                                    <p class="text-slate-500">{{ __('aml.no_checks') }}</p>
-                                    <a href="{{ route('checks.create') }}" class="mt-3 inline-flex items-center px-4 py-2 bg-indigo-600 text-sm font-medium text-white hover:bg-indigo-700">{{ __('aml.start_first') }}</a>
+                                    <p class="text-ink-muted">{{ __('aml.no_checks') }}</p>
+                                    <a href="{{ route('checks.create') }}" class="mt-3 inline-flex items-center px-4 py-2 bg-ink text-sm font-medium text-white hover:bg-ink-soft">{{ __('aml.start_first') }}</a>
                                 </td>
                             </tr>
                         @endforelse

@@ -6,6 +6,7 @@ namespace App\Services\Reports;
 use App\Enums\CheckType;
 use App\Enums\CheckVerdict;
 use App\Models\Check;
+use App\Support\TronAddress;
 use App\Services\Onchain\AssetNarrativeService;
 use App\Services\Onchain\TokenCompositionChart;
 use App\Services\Onchain\WalletUsdValuationService;
@@ -67,6 +68,7 @@ class CheckReportPresenter
             'generatedAt' => now(),
             'footer' => (string) config('report.footer'),
             'brand' => 'GANIMED AML',
+            'logoMark' => public_path('images/logo-gnd-mark.png'),
             'reportTitle' => $this->reportTitle($check),
             'sources' => $isWalletReport ? 'GoPlus · TronGrid' : 'GoPlus',
             'isWalletReport' => $isWalletReport,
@@ -424,7 +426,7 @@ class CheckReportPresenter
     /**
      * @param  array<string, mixed>  $onchain
      * @param  array<string, mixed>|null  $usdSummary
-     * @return list<array{label: string, value: string}>
+     * @return list<array{label: string, value: string, href?: string}>
      */
     private function objectRows(Check $check, bool $hasOnchain, array $onchain, ?array $usdSummary): array
     {
@@ -435,8 +437,13 @@ class CheckReportPresenter
             ? ($isContract ? __('aml.object_contract') : __('aml.object_eoa'))
             : $check->type->label();
 
+        $subjectRow = ['label' => __('aml.subject'), 'value' => $check->subject];
+        if ($explorerUrl = TronAddress::explorerUrl($check->subject)) {
+            $subjectRow['href'] = $explorerUrl;
+        }
+
         $rows = [
-            ['label' => __('aml.subject'), 'value' => $check->subject],
+            $subjectRow,
             ['label' => __('aml.chain'), 'value' => $check->chainName() ?? '—'],
             ['label' => __('aml.type'), 'value' => $typeValue],
             ['label' => __('aml.created'), 'value' => (string) $check->created_at],

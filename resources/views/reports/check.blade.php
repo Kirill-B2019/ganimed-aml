@@ -12,14 +12,10 @@
         h3 { font-size: 12px; margin: 12px 0 6px; }
         p { margin: 0 0 8px; line-height: 1.45; }
         .muted { color: #555; font-size: 10px; }
-        .brand { margin: 0 0 10px; }
-        .brand-mark {
-            display: inline-block; width: 18px; height: 18px; line-height: 18px;
-            text-align: center; background: #312e81; color: #eef2ff; font-size: 11px; font-weight: bold;
-            vertical-align: middle;
-        }
-        .brand-name { display: inline-block; margin-left: 8px; font-size: 12px; letter-spacing: 1px; color: #1e1b4b; vertical-align: middle; }
-        .brand-aml { color: #4f46e5; }
+        .brand { margin: 0 0 14px; padding-bottom: 10px; border-bottom: 2px solid #0C0C0D; }
+        .brand img { width: 22px; height: 22px; vertical-align: middle; }
+        .brand-name { display: inline-block; margin-left: 8px; font-size: 12px; letter-spacing: 2px; color: #0C0C0D; vertical-align: middle; }
+        .brand-aml { color: #6F6E69; }
         .pill { display: inline-block; padding: 2px 7px; font-size: 9px; border: 1px solid #d1d5db; margin: 0 4px 6px 0; }
         .pill-success { background: #ecfdf5; }
         .pill-warning { background: #fffbeb; }
@@ -34,7 +30,7 @@
         .stat-danger { background: #fef2f2; }
         table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
         th, td { border: 1px solid #e5e7eb; padding: 5px 7px; text-align: left; vertical-align: top; }
-        th { background: #f8fafc; font-size: 10px; color: #555; }
+        th { background: #F3F2EE; font-size: 10px; color: #555; }
         .mono { font-family: DejaVu Sans, sans-serif; font-size: 9px; word-wrap: break-word; }
         .row-success { background: #ecfdf5; }
         .row-warning { background: #fffbeb; }
@@ -61,7 +57,13 @@
     <footer>{{ $footer }}</footer>
 
     <div class="brand">
-        <span class="brand-mark">G</span>
+        @php
+            $logoSrc = str_replace('\\', '/', (string) ($logoMark ?? public_path('images/logo-gnd-mark.png')));
+            if (! str_starts_with($logoSrc, 'file:')) {
+                $logoSrc = 'file:///'.$logoSrc;
+            }
+        @endphp
+        <img src="{{ $logoSrc }}" width="22" height="22" alt="">
         <span class="brand-name">GANIMED <span class="brand-aml">AML</span></span>
     </div>
     <h1>{{ $reportTitle }}</h1>
@@ -145,7 +147,13 @@
             @foreach ($objectRows as $i => $row)
                 <tr class="{{ $i % 2 === 1 ? 'row-stripe' : '' }}">
                     <td>{{ $row['label'] }}</td>
-                    <td class="mono">{{ $row['value'] }}</td>
+                    <td class="mono">
+                        @if (! empty($row['href']))
+                            <a href="{{ $row['href'] }}">{{ $row['value'] }}</a>
+                        @else
+                            {{ $row['value'] }}
+                        @endif
+                    </td>
                 </tr>
             @endforeach
         </tbody>

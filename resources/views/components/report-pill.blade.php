@@ -3,13 +3,13 @@
 
 @php
     $classes = match ($tone) {
-        'success' => 'bg-emerald-50 text-emerald-800 ring-emerald-200',
-        'warning' => 'bg-amber-50 text-amber-900 ring-amber-200',
-        'danger' => 'bg-rose-50 text-rose-800 ring-rose-200',
-        default => 'bg-slate-100 text-slate-700 ring-slate-200',
+        'success' => 'bg-emerald-50 text-emerald-900 ring-emerald-200',
+        'warning' => 'bg-amber-50 text-amber-950 ring-amber-200',
+        'danger' => 'bg-rose-50 text-rose-900 ring-rose-200',
+        default => 'bg-ink-paper text-ink ring-ink-line',
     };
 @endphp
 
-<span {{ $attributes->merge(['class' => 'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ring-1 ring-inset '.$classes]) }}>
+<span {{ $attributes->merge(['class' => 'inline-flex items-center px-2 py-0.5 text-[11px] font-medium tracking-[0.04em] ring-1 ring-inset '.$classes]) }}>
     {{ $slot }}
 </span>

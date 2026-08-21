@@ -7,7 +7,7 @@
         'success' => '#059669',
         'warning' => '#d97706',
         'danger' => '#e11d48',
-        default => '#4f46e5',
+        default => '#0C0C0D',
     };
     $rest = 100 - $pct;
 @endphp

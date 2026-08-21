@@ -13,7 +13,21 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                sans: ['Figtree', ...defaultTheme.fontFamily.sans],
+                sans: ['IBM Plex Sans', ...defaultTheme.fontFamily.sans],
+                mono: ['IBM Plex Mono', ...defaultTheme.fontFamily.mono],
+            },
+            colors: {
+                ink: {
+                    DEFAULT: '#0C0C0D',
+                    soft: '#1A1A1C',
+                    muted: '#6F6E69',
+                    faint: '#9A9892',
+                    line: '#E2E0D8',
+                    paper: '#F3F2EE',
+                },
+            },
+            maxWidth: {
+                page: '80rem',
             },
         },
     },

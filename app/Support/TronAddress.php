@@ -12,6 +12,15 @@ class TronAddress
         return (bool) preg_match('/^T[1-9A-HJ-NP-Za-km-z]{33}$/', $address);
     }
 
+    public static function explorerUrl(string $address): ?string
+    {
+        if (! self::isTron($address)) {
+            return null;
+        }
+
+        return 'https://tronscan.org/#/address/'.$address;
+    }
+
     public static function fromHex(string $hex): string
     {
         $hex = strtolower(ltrim($hex, '0x'));

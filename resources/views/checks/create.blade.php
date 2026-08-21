@@ -1,7 +1,7 @@
 {{-- | KB @CerberRus00 - Nexus Invest Team --}}
 <x-app-layout :title="__('aml.new_check')">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold text-slate-900">{{ __('aml.new_check') }}</h1>
+        <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ __('aml.new_check') }}</h1>
     </x-slot>
 
     @php
@@ -17,20 +17,20 @@
     <div class="py-8">
         <div class="page">
             <div class="max-w-3xl">
-            <div class="flex border-b border-slate-200 overflow-x-auto" role="tablist">
+            <div class="flex border-b border-ink-line overflow-x-auto" role="tablist">
                 @foreach ($tabs as $key => $meta)
                     <a href="{{ route('checks.create', ['tab' => $key]) }}"
                        role="tab"
                        aria-selected="{{ $tab === $key ? 'true' : 'false' }}"
-                       class="px-4 py-3 text-sm whitespace-nowrap {{ $tab === $key ? 'border-b-2 border-indigo-600 text-indigo-700 font-medium' : 'text-slate-500 hover:text-slate-800' }}">
+                       class="px-4 py-3 text-sm whitespace-nowrap {{ $tab === $key ? 'border-b-2 border-ink text-ink font-medium' : 'text-ink-muted hover:text-ink' }}">
                         {{ __($meta['label']) }}
                     </a>
                 @endforeach
             </div>
 
-            <p class="mt-4 text-sm leading-6 text-slate-600">{{ __($tabs[$tab]['hint'] ?? $tabs['address']['hint']) }}</p>
+            <p class="mt-4 text-sm leading-6 text-ink-muted">{{ __($tabs[$tab]['hint'] ?? $tabs['address']['hint']) }}</p>
 
-            <div class="mt-5 max-w-xl">
+            <div class="mt-5 max-w-xl ui-panel">
                 @if ($tab === 'address')
                     <form method="POST" action="{{ route('checks.address') }}" class="space-y-4">
                         @csrf
@@ -42,8 +42,8 @@
                         <div>
                             <x-input-label :value="__('aml.chain')" />
                             <input type="hidden" name="chain_id" value="tron">
-                            <p class="mt-1 text-sm text-slate-800">Tron</p>
-                            <p class="mt-1 text-xs text-slate-500">{{ __('aml.chain_tron_only') }}</p>
+                            <p class="mt-1 text-sm text-ink">Tron</p>
+                            <p class="mt-1 text-xs text-ink-muted">{{ __('aml.chain_tron_only') }}</p>
                         </div>
                         <x-primary-button>{{ __('aml.run_check') }}</x-primary-button>
                     </form>
@@ -58,8 +58,8 @@
                         <div>
                             <x-input-label :value="__('aml.chain')" />
                             <input type="hidden" name="chain_id" value="tron">
-                            <p class="mt-1 text-sm text-slate-800">Tron</p>
-                            <p class="mt-1 text-xs text-slate-500">{{ __('aml.chain_tron_only') }}</p>
+                            <p class="mt-1 text-sm text-ink">Tron</p>
+                            <p class="mt-1 text-xs text-ink-muted">{{ __('aml.chain_tron_only') }}</p>
                         </div>
                         <x-primary-button>{{ __('aml.run_check') }}</x-primary-button>
                     </form>
@@ -84,8 +84,8 @@
                         <div>
                             <x-input-label :value="__('aml.chain')" />
                             <input type="hidden" name="chain_id" value="tron">
-                            <p class="mt-1 text-sm text-slate-800">Tron</p>
-                            <p class="mt-1 text-xs text-slate-500">{{ __('aml.chain_tron_only') }}</p>
+                            <p class="mt-1 text-sm text-ink">Tron</p>
+                            <p class="mt-1 text-xs text-ink-muted">{{ __('aml.chain_tron_only') }}</p>
                         </div>
                         <x-primary-button>{{ __('aml.run_scan') }}</x-primary-button>
                     </form>

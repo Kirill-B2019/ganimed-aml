@@ -1,8 +1,8 @@
 {{-- | KB @CerberRus00 - Nexus Invest Team --}}
 <x-app-layout :title="__('aml.api')">
     <x-slot name="header">
-        <h1 class="text-2xl font-semibold text-slate-900">{{ __('aml.api') }}</h1>
-        <p class="mt-1 text-sm text-slate-500">{{ __('aml.api_docs_intro') }}</p>
+        <h1 class="text-2xl font-semibold tracking-tight text-ink">{{ __('aml.api') }}</h1>
+        <p class="mt-1 text-sm text-ink-muted">{{ __('aml.api_docs_intro') }}</p>
     </x-slot>
 
     @php
@@ -26,7 +26,7 @@ TXT;
 curl {$apiBase}/checks/1/pdf \\
   -H "{$authHeader}" \\
   -H "Accept-Language: en" \\
-  -o aml-check-1.pdf
+  -o TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk_2026-08-21_09-33-15.pdf
 TXT;
         $responseExample = <<<'JSON'
 {
@@ -86,7 +86,7 @@ JSON;
                     <x-primary-button>{{ __('aml.create_token') }}</x-primary-button>
                 </form>
 
-                <div class="mt-4 border border-slate-200 divide-y divide-slate-200">
+                <div class="mt-4 border border-ink-line divide-y divide-ink-line">
                     @forelse ($tokens as $item)
                         <div class="flex items-center justify-between p-4">
                             <div>
@@ -108,7 +108,7 @@ JSON;
             <x-report-section :title="__('aml.api_docs_title')" :hint="__('aml.api_docs_chain')">
                 <div class="space-y-8 text-sm">
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_base') }}</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_base') }}</h3>
                         <div class="mt-2 flex items-center gap-2 font-mono text-slate-800">
                             <span>{{ $apiBase }}</span>
                             <x-copy-button :text="$apiBase" />
@@ -116,19 +116,19 @@ JSON;
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_auth_title') }}</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_auth_title') }}</h3>
                         <p class="mt-2 leading-6 text-slate-700">{{ __('aml.api_docs_auth_body') }}</p>
                         <x-code-sample class="mt-3" :code="$authHeader" />
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_headers') }}</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_headers') }}</h3>
                         <p class="mt-2 leading-6 text-slate-700">{{ __('aml.api_docs_lang') }}</p>
                         <x-code-sample class="mt-3" :code="$headers" />
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_endpoints') }}</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_endpoints') }}</h3>
                         <div class="mt-3 overflow-x-auto">
                             <table class="min-w-full text-sm">
                                 <thead>
@@ -142,8 +142,8 @@ JSON;
                                 </thead>
                                 <tbody>
                                     @foreach ($endpoints as $row)
-                                        <tr class="border-t border-slate-100 align-top">
-                                            <td class="py-2 pr-3 font-mono text-xs font-semibold {{ str_starts_with($row[0], 'P') ? 'text-indigo-700' : 'text-slate-700' }}">{{ $row[0] }}</td>
+                                        <tr class="border-t border-ink-line align-top">
+                                            <td class="py-2 pr-3 font-mono text-xs font-semibold {{ str_starts_with($row[0], 'P') ? 'text-ink' : 'text-ink-muted' }}">{{ $row[0] }}</td>
                                             <td class="py-2 pr-3 font-mono text-xs">{{ $row[1] }}</td>
                                             <td class="py-2 pr-3 font-mono text-xs text-slate-600">{{ $row[2] }}</td>
                                             <td class="py-2 pr-3 font-mono text-xs">{{ $row[3] }}</td>
@@ -156,28 +156,28 @@ JSON;
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_example') }} · POST /checks/address</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_example') }} · POST /checks/address</h3>
                         <x-code-sample class="mt-3" :code="$curlAddress" />
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_example') }} · GET /checks/{id}</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_example') }} · GET /checks/{id}</h3>
                         <x-code-sample class="mt-3" :code="$curlShow" />
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_example') }} · GET /checks/{id}/pdf</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_example') }} · GET /checks/{id}/pdf</h3>
                         <x-code-sample class="mt-3" :code="$curlPdf" />
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_response') }}</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_response') }}</h3>
                         <p class="mt-2 text-xs text-slate-500">{{ __('aml.api_docs_list_wrap') }}</p>
                         <x-code-sample class="mt-3" :code="$responseExample" />
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_fields') }}</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_fields') }}</h3>
                         <table class="mt-3 w-full text-sm">
                             <tbody>
                                 @foreach ([
@@ -193,7 +193,7 @@ JSON;
                                     'asset_narrative' => 'api_docs_field_narrative',
                                     'wallet_usd' => 'api_docs_field_usd',
                                 ] as $field => $help)
-                                    <tr class="border-t border-slate-100 align-top">
+                                    <tr class="border-t border-ink-line align-top">
                                         <td class="py-2 pr-4 font-mono text-xs text-slate-600 whitespace-nowrap">{{ $field }}</td>
                                         <td class="py-2 text-slate-700">{{ __('aml.'.$help) }}</td>
                                     </tr>
@@ -203,7 +203,7 @@ JSON;
                     </div>
 
                     <div>
-                        <h3 class="font-semibold text-slate-900">{{ __('aml.api_docs_errors') }}</h3>
+                        <h3 class="font-semibold text-ink">{{ __('aml.api_docs_errors') }}</h3>
                         <table class="mt-3 w-full text-sm">
                             <tbody>
                                 @foreach ([
@@ -213,7 +213,7 @@ JSON;
                                     '422' => 'api_docs_err_422',
                                     '502' => 'api_docs_err_502',
                                 ] as $code => $help)
-                                    <tr class="border-t border-slate-100">
+                                    <tr class="border-t border-ink-line">
                                         <td class="py-2 pr-4 font-mono text-xs font-semibold w-16">{{ $code }}</td>
                                         <td class="py-2 text-slate-700">{{ __('aml.'.$help) }}</td>
                                     </tr>

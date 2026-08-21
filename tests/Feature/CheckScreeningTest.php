@@ -10,6 +10,7 @@ use App\Jobs\PollAddressScanJob;
 use App\Models\Check;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -160,9 +161,12 @@ class CheckScreeningTest extends TestCase
 
     public function test_pdf_is_available_for_completed_check(): void
     {
+        Carbon::setTestNow('2026-08-21 09:33:15');
+
         $user = User::factory()->create();
         $check = Check::factory()->create([
             'user_id' => $user->id,
+            'subject' => 'TU72cTvdkWvoB7xgN5TXFtoXtUuWRuvUTm',
             'status' => CheckStatus::Completed,
             'verdict' => CheckVerdict::Clear,
         ]);
@@ -170,7 +174,8 @@ class CheckScreeningTest extends TestCase
         $this->actingAs($user)
             ->get(route('checks.pdf', $check))
             ->assertOk()
-            ->assertHeader('content-type', 'application/pdf');
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertDownload('TU72cTvdkWvoB7xgN5TXFtoXtUuWRuvUTm_2026-08-21_09-33-15.pdf');
     }
 
     public function test_pdf_follows_active_ui_language_not_check_locale(): void

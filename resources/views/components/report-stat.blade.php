@@ -6,25 +6,25 @@
         'success' => 'text-emerald-800',
         'warning' => 'text-amber-800',
         'danger' => 'text-rose-800',
-        default => 'text-slate-900',
+        default => 'text-ink',
     };
-    $boxClass = match ($tone) {
-        'success' => 'border-emerald-200 bg-emerald-50',
-        'warning' => 'border-amber-200 bg-amber-50',
-        'danger' => 'border-rose-200 bg-rose-50',
-        default => 'border-slate-200 bg-white',
+    $stripe = match ($tone) {
+        'success' => 'border-l-emerald-700',
+        'warning' => 'border-l-amber-600',
+        'danger' => 'border-l-rose-700',
+        default => 'border-l-ink',
     };
-    $classes = 'border px-4 py-3 '.$boxClass.($href ? ' block hover:border-slate-400' : '');
+    $classes = 'border border-ink-line border-l-[3px] bg-white px-4 py-3 '.$stripe.($href ? ' block hover:bg-ink-paper' : '');
 @endphp
 
 @if ($href)
     <a href="{{ $href }}" {{ $attributes->merge(['class' => $classes]) }}>
-        <div class="text-xl font-semibold leading-tight {{ $valueClass }}">{{ $slot }}</div>
-        <div class="mt-1 text-xs text-slate-500">{{ $label }}</div>
+        <div class="text-xl font-semibold leading-tight tabular-nums {{ $valueClass }}">{{ $slot }}</div>
+        <div class="mt-1 text-[11px] uppercase tracking-[0.08em] text-ink-muted">{{ $label }}</div>
     </a>
 @else
     <div {{ $attributes->merge(['class' => $classes]) }}>
-        <div class="text-xl font-semibold leading-tight {{ $valueClass }}">{{ $slot }}</div>
-        <div class="mt-1 text-xs text-slate-500">{{ $label }}</div>
+        <div class="text-xl font-semibold leading-tight tabular-nums {{ $valueClass }}">{{ $slot }}</div>
+        <div class="mt-1 text-[11px] uppercase tracking-[0.08em] text-ink-muted">{{ $label }}</div>
     </div>
 @endif

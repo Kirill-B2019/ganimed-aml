@@ -3,12 +3,12 @@
 
 <section {{ $attributes->merge(['class' => 'space-y-3']) }}>
     @if ($title)
-        <h2 class="text-lg font-semibold text-slate-900">{{ $title }}</h2>
+        <h2 class="text-base font-semibold tracking-tight text-ink">{{ $title }}</h2>
     @endif
     @if ($hint)
-        <p class="text-xs text-slate-500 leading-5">{{ $hint }}</p>
+        <p class="text-xs text-ink-muted leading-5">{{ $hint }}</p>
     @endif
-    <div>
+    <div class="ui-panel">
         {{ $slot }}
     </div>
 </section>

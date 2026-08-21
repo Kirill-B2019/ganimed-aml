@@ -136,6 +136,8 @@ class OnchainEnrichmentTest extends TestCase
             ->assertSee('viewBox="0 0 180 180"', false)
             ->assertSee('Баланс кошелька, USD', false)
             ->assertSee('$109.39', false)
+            ->assertSee('https://tronscan.org/#/address/TFq8GqCTiJA1PAnCJjtqDMHTRAsZgKNaYk', false)
+            ->assertSee('target="_blank"', false)
             ->assertDontSee('Файл: на проверку', false);
     }
 

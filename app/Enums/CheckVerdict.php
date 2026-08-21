@@ -17,9 +17,9 @@ enum CheckVerdict: string
     public function css(): string
     {
         return match ($this) {
-            self::Clear => 'bg-emerald-100 text-emerald-800',
-            self::Review => 'bg-amber-100 text-amber-800',
-            self::Block => 'bg-rose-100 text-rose-800',
+            self::Clear => 'bg-emerald-50 text-emerald-900 ring-1 ring-inset ring-emerald-200',
+            self::Review => 'bg-amber-50 text-amber-950 ring-1 ring-inset ring-amber-200',
+            self::Block => 'bg-rose-50 text-rose-900 ring-1 ring-inset ring-rose-200',
         };
     }
 }

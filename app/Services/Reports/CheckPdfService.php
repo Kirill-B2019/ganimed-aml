@@ -19,7 +19,18 @@ class CheckPdfService
             ->setPaper('a4')
             ->setOption('defaultFont', 'DejaVu Sans');
 
-        return $pdf->download(sprintf('aml-check-%d.pdf', $check->id));
+        return $pdf->download($this->filename($check));
+    }
+
+    public function filename(Check $check): string
+    {
+        $subject = preg_replace('/[^A-Za-z0-9]+/', '-', (string) $check->subject) ?? '';
+        $subject = trim($subject, '-');
+        if ($subject === '') {
+            $subject = 'check-'.$check->id;
+        }
+
+        return $subject.'_'.now()->format('Y-m-d_H-i-s').'.pdf';
     }
 
     public function html(Check $check): string
