@@ -2,38 +2,7 @@
 @php
     $peerKey = $peerKey ?? 'from';
 @endphp
-<div class="mt-4 sm:hidden divide-y divide-ink-line">
-    @foreach ($rows as $row)
-        @php
-            $rowBg = match ($row['tone'] ?? '') {
-                'success' => 'bg-emerald-50',
-                'warning' => 'bg-amber-50',
-                'danger' => 'bg-rose-50',
-                default => '',
-            };
-            $peer = $row[$peerKey] ?? '';
-        @endphp
-        <div class="py-2.5 px-1 {{ $rowBg }}">
-            <x-tronscan-link :address="$peer" :short="true" />
-            <p class="mt-1 text-sm">
-                <span>{{ $row['symbol'] }}</span>
-                <span class="ms-2 font-mono">{{ $row['amount'] }}</span>
-                @if (! empty($row['tx_count']))
-                    <span class="ms-2 text-xs text-ink-muted">×{{ $row['tx_count'] }}</span>
-                @endif
-            </p>
-            @if (! empty($row['contract']))
-                <div class="mt-0.5">
-                    <x-tronscan-link :address="$row['contract']" :short="true" class="text-ink-muted" />
-                </div>
-            @endif
-            @if (! empty($row['comment']))
-                <p class="mt-1 text-xs text-ink-muted">{{ $row['comment'] }}</p>
-            @endif
-        </div>
-    @endforeach
-</div>
-<div class="mt-4 hidden overflow-x-auto sm:block">
+<div class="mt-4 overflow-x-auto">
     <table class="min-w-full text-sm">
         <thead>
             <tr class="text-left text-xs text-ink-muted">
