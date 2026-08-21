@@ -15,15 +15,15 @@
     @endphp
 
     <div class="sticky top-14 z-20 border-b border-ink-line bg-ink-paper/95 backdrop-blur-sm">
-        <div class="page flex items-center justify-between gap-3 py-2.5">
+        <div class="page flex flex-col gap-2 py-2 sm:flex-row sm:items-center sm:justify-between sm:py-2.5">
             <div class="flex min-w-0 items-center gap-3 text-sm">
                 <a href="{{ route('checks.index') }}" class="shrink-0 text-ink-muted hover:text-ink">{{ __('aml.back_history') }}</a>
                 <span class="hidden text-ink-line sm:inline">/</span>
                 <span class="hidden truncate font-mono text-ink sm:inline">{{ $check->subject }}</span>
                 <x-copy-button :text="$check->subject" class="hidden shrink-0 sm:inline" />
             </div>
-            <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                @if ($check->isCompleted())
+            @if ($check->isCompleted())
+                <div class="flex flex-wrap items-center gap-2">
                     <x-verdict-badge :verdict="$check->verdict" />
                     <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'file'])">{{ __('aml.pdf_file') }}</x-secondary-button>
                     <x-secondary-button :href="route('checks.pdf', [$check, 'variant' => 'full'])">{{ __('aml.pdf_full') }}</x-secondary-button>
@@ -31,18 +31,21 @@
                         @csrf
                         <x-primary-button>{{ __('aml.rerun') }}</x-primary-button>
                     </form>
-                    <form method="POST" action="{{ route('watch.store') }}" class="flex items-center gap-2">
+                    <form method="POST" action="{{ route('watch.store') }}" class="flex flex-wrap items-center gap-2">
                         @csrf
                         <input type="hidden" name="check_id" value="{{ $check->id }}">
-                        <select name="interval_days" class="ui-select text-sm" title="{{ __('aml.watch_interval') }}">
+                        <select name="interval_days" class="ui-select w-20 text-sm" title="{{ __('aml.watch_interval') }}">
                             @foreach ([1, 3, 7, 14, 30] as $n)
                                 <option value="{{ $n }}" @selected($n === 7)>{{ __('aml.watch_interval_n', ['n' => $n]) }}</option>
                             @endforeach
                         </select>
-                        <x-secondary-button type="submit">{{ __('aml.watch_add') }}</x-secondary-button>
+                        <x-secondary-button type="submit">
+                            <span class="sm:hidden">{{ __('aml.watch_add_short') }}</span>
+                            <span class="hidden sm:inline">{{ __('aml.watch_add') }}</span>
+                        </x-secondary-button>
                     </form>
-                @endif
-            </div>
+                </div>
+            @endif
         </div>
     </div>
 

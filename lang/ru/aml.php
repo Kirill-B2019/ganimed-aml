@@ -404,6 +404,7 @@ return [
     'case_default_monitoring_note' => 'Регулярный watchlist.',
     'watchlist' => 'Watchlist',
     'watch_add' => 'Следить за адресом',
+    'watch_add_short' => 'Следить',
     'watch_interval' => 'Интервал, дней',
     'watch_interval_n' => ':n дн.',
     'watch_empty' => 'Список наблюдения пуст.',

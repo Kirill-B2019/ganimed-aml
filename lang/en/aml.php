@@ -404,6 +404,7 @@ return [
     'case_default_monitoring_note' => 'Recurring watchlist.',
     'watchlist' => 'Watchlist',
     'watch_add' => 'Watch this subject',
+    'watch_add_short' => 'Watch',
     'watch_interval' => 'Interval, days',
     'watch_interval_n' => ':n days',
     'watch_empty' => 'Watchlist is empty.',
